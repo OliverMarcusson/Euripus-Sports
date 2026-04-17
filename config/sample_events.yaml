@@ -1,0 +1,113 @@
+events:
+  - id: allsvenskan_2026_04_18_hammarby_malmo
+    sport: soccer
+    competition: allsvenskan
+    title: Hammarby vs Malmö FF
+    start_time: "2026-04-18T13:00:00+02:00"
+    end_time: "2026-04-18T15:00:00+02:00"
+    status: upcoming
+    venue: 3Arena
+    round_label: Round 4
+    participants:
+      home: Hammarby
+      away: Malmö FF
+    source: official
+    source_url: https://allsvenskan.se/matcher
+  - id: premier_league_2026_04_17_arsenal_liverpool
+    sport: soccer
+    competition: premier_league
+    title: Arsenal vs Liverpool
+    start_time: "2026-04-17T20:00:00+02:00"
+    end_time: "2026-04-17T22:00:00+02:00"
+    status: live
+    venue: Emirates Stadium
+    round_label: Matchweek 33
+    participants:
+      home: Arsenal
+      away: Liverpool
+    source: official
+    source_url: https://www.premierleague.com/fixtures
+  - id: uefa_cl_2026_04_17_barcelona_inter
+    sport: soccer
+    competition: uefa_champions_league
+    title: Barcelona vs Inter
+    start_time: "2026-04-17T21:00:00+02:00"
+    end_time: "2026-04-17T23:00:00+02:00"
+    status: upcoming
+    venue: Estadi Olímpic Lluís Companys
+    round_label: Semi-final
+    participants:
+      home: Barcelona
+      away: Inter
+    source: official
+    source_url: https://www.uefa.com/uefachampionsleague/fixtures-results/
+  - id: shl_2026_04_17_frolunda_lulea
+    sport: hockey
+    competition: shl
+    title: Frölunda HC vs Luleå HF
+    start_time: "2026-04-17T19:30:00+02:00"
+    end_time: "2026-04-17T22:00:00+02:00"
+    status: live
+    venue: Scandinavium
+    round_label: Final 3
+    participants:
+      home: Frölunda HC
+      away: Luleå HF
+    source: official
+    source_url: https://www.shl.se/game-schedule
+  - id: hockeyallsvenskan_2026_04_18_djurgarden_bik
+    sport: hockey
+    competition: hockeyallsvenskan
+    title: Djurgårdens IF vs BIK Karlskoga
+    start_time: "2026-04-18T18:00:00+02:00"
+    end_time: "2026-04-18T20:30:00+02:00"
+    status: upcoming
+    venue: Hovet
+    round_label: Final 2
+    participants:
+      home: Djurgårdens IF
+      away: BIK Karlskoga
+    source: official
+    source_url: https://www.hockeyallsvenskan.se/game-schedule
+  - id: bandy_2026_04_19_villa_vsk
+    sport: bandy
+    competition: bandy_elitserien
+    title: Villa Lidköping vs Västerås SK
+    start_time: "2026-04-19T16:00:00+02:00"
+    end_time: "2026-04-19T18:00:00+02:00"
+    status: upcoming
+    venue: Sparbanken Lidköping Arena
+    round_label: Final
+    participants:
+      home: Villa Lidköping
+      away: Västerås SK
+    source: official
+    source_url: https://elitserien.se/spelprogram/
+  - id: pga_tour_2026_04_17_rbc_heritage_round_2
+    sport: golf
+    competition: pga_tour
+    title: RBC Heritage Round 2
+    start_time: "2026-04-17T14:00:00+02:00"
+    end_time: "2026-04-17T23:30:00+02:00"
+    status: live
+    venue: Harbour Town Golf Links
+    round_label: Round 2
+    participants:
+      home: RBC Heritage
+      away: Field
+    source: official
+    source_url: https://www.pgatour.com/schedule
+  - id: fifa_world_cup_2026_06_15_sweden_tunisia
+    sport: soccer
+    competition: fifa_world_cup_2026
+    title: Sweden vs Tunisia
+    start_time: "2026-06-15T02:00:00+02:00"
+    end_time: "2026-06-15T04:00:00+02:00"
+    status: upcoming
+    venue: Monterrey Stadium (Monterrey)
+    round_label: First Stage· Group F
+    participants:
+      home: Sweden
+      away: Tunisia
+    source: official
+    source_url: https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/scores-fixtures

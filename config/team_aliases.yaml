@@ -1,0 +1,169 @@
+teams:
+  - competition: allsvenskan
+    canonical: AIK
+    aliases: [AIK]
+  - competition: allsvenskan
+    canonical: BK Häcken
+    aliases: [BK Häcken]
+  - competition: allsvenskan
+    canonical: Degerfors IF
+    aliases: [Degerfors IF]
+  - competition: allsvenskan
+    canonical: Djurgårdens IF
+    aliases: [Djurgårdens IF, Djurgården]
+  - competition: allsvenskan
+    canonical: GAIS
+    aliases: [GAIS]
+  - competition: allsvenskan
+    canonical: Halmstads BK
+    aliases: [Halmstads BK]
+  - competition: allsvenskan
+    canonical: Hammarby IF
+    aliases: [Hammarby, Hammarby IF]
+  - competition: allsvenskan
+    canonical: IF Brommapojkarna
+    aliases: [IF Brommapojkarna]
+  - competition: allsvenskan
+    canonical: IF Elfsborg
+    aliases: [IF Elfsborg]
+  - competition: allsvenskan
+    canonical: IFK Göteborg
+    aliases: [IFK Göteborg]
+  - competition: allsvenskan
+    canonical: IK Sirius
+    aliases: [IK Sirius]
+  - competition: allsvenskan
+    canonical: Kalmar FF
+    aliases: [Kalmar FF]
+  - competition: allsvenskan
+    canonical: Malmö FF
+    aliases: [Malmö FF]
+  - competition: allsvenskan
+    canonical: Mjällby AIF
+    aliases: [Mjällby AIF]
+  - competition: allsvenskan
+    canonical: Västerås SK
+    aliases: [Västerås SK]
+  - competition: allsvenskan
+    canonical: Örgryte IS
+    aliases: [Örgryte IS, Örgryte]
+  - competition: premier_league
+    canonical: AFC Bournemouth
+    aliases: [AFC Bournemouth, Bournemouth]
+  - competition: premier_league
+    canonical: Newcastle United
+    aliases: [Newcastle United, Newcastle]
+  - competition: premier_league
+    canonical: Tottenham Hotspur
+    aliases: [Tottenham Hotspur, Tottenham]
+  - competition: premier_league
+    canonical: Brighton & Hove Albion
+    aliases: [Brighton & Hove Albion, Brighton]
+  - competition: premier_league
+    canonical: Wolverhampton Wanderers
+    aliases: [Wolverhampton Wanderers, Wolverhampton]
+  - competition: premier_league
+    canonical: Leeds United
+    aliases: [Leeds United, Leeds]
+  - competition: premier_league
+    canonical: Arsenal
+    aliases: [Arsenal]
+  - competition: premier_league
+    canonical: Chelsea
+    aliases: [Chelsea]
+  - competition: uefa_champions_league
+    canonical: Paris Saint-Germain
+    aliases: [Paris Saint-Germain, Paris SG, PSG]
+  - competition: uefa_champions_league
+    canonical: Bayern Munich
+    aliases: [Bayern Munich, Bayern, Bayern München]
+  - competition: uefa_champions_league
+    canonical: Atletico Madrid
+    aliases: [Atletico Madrid, Atlético Madrid]
+  - competition: uefa_champions_league
+    canonical: Chelsea
+    aliases: [Chelsea]
+  - competition: superettan
+    canonical: Helsingborgs IF
+    aliases: [Helsingborgs IF]
+  - competition: superettan
+    canonical: Östers IF
+    aliases: [Östers IF]
+  - competition: superettan
+    canonical: IFK Norrköping FK
+    aliases: [IFK Norrköping FK]
+  - competition: superettan
+    canonical: IFK Värnamo
+    aliases: [IFK Värnamo]
+  - competition: superettan
+    canonical: GIF Sundsvall
+    aliases: [GIF Sundsvall]
+  - competition: superettan
+    canonical: Nordic United FC
+    aliases: [Nordic United FC]
+  - competition: superettan
+    canonical: Norrby IF
+    aliases: [Norrby IF]
+  - competition: superettan
+    canonical: IK Brage
+    aliases: [IK Brage]
+  - competition: superettan
+    canonical: Falkenbergs FF
+    aliases: [Falkenbergs FF]
+  - competition: superettan
+    canonical: Ljungskile SK Herrfotboll
+    aliases: [Ljungskile SK Herrfotboll, Ljungskile SK]
+  - competition: superettan
+    canonical: Örebro
+    aliases: [Örebro, Örebro SK]
+  - competition: superettan
+    canonical: Landskrona BoIS
+    aliases: [Landskrona BoIS]
+  - competition: superettan
+    canonical: IK Oddevold
+    aliases: [IK Oddevold]
+  - competition: superettan
+    canonical: Sandvikens IF
+    aliases: [Sandvikens IF]
+  - competition: superettan
+    canonical: Varberg BoIS FC
+    aliases: [Varberg BoIS FC, Varberg]
+  - competition: superettan
+    canonical: Östersund
+    aliases: [Östersund, Östersunds FK]
+  - competition: shl
+    canonical: Skellefteå AIK
+    aliases: [Skellefteå AIK, SKE]
+  - competition: shl
+    canonical: Rögle BK
+    aliases: [Rögle BK, RBK]
+  - competition: shl
+    canonical: Växjö Lakers
+    aliases: [Växjö Lakers, VLH]
+  - competition: shl
+    canonical: Frölunda HC
+    aliases: [Frölunda HC, FHC]
+  - competition: shl
+    canonical: Luleå Hockey
+    aliases: [Luleå Hockey, LHF, Luleå HF, Luleå]
+  - competition: hockeyallsvenskan
+    canonical: BIK Karlskoga
+    aliases: [BIK Karlskoga, BIK]
+  - competition: hockeyallsvenskan
+    canonical: Björklöven
+    aliases: [Björklöven, IF Björklöven, IFB]
+  - competition: hockeyallsvenskan
+    canonical: Djurgårdens IF
+    aliases: [Djurgårdens IF, DIF]
+  - competition: bandy_elitserien
+    canonical: Villa-Lidköping BK
+    aliases: [Villa-Lidköping BK, Villa Lidköping]
+  - competition: bandy_elitserien
+    canonical: Västerås SK
+    aliases: [Västerås SK]
+  - competition: bandy_elitserien
+    canonical: IK Sirius
+    aliases: [IK Sirius, Sirius]
+  - competition: bandy_elitserien
+    canonical: Edsbyns IF Bandyförening
+    aliases: [Edsbyns IF Bandyförening, Edsbyns IF]

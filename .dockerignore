@@ -1,0 +1,7 @@
+target
+.git
+.gitignore
+sports-api.db
+*.db
+*.log
+.DS_Store

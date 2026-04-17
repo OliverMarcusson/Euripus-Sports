@@ -1,0 +1,34 @@
+providers:
+  - family: viaplay
+    market: se
+    aliases: [Viaplay, Viaplay Sport, V Sport, V Sport Premium, V Sport Football, V Sport Golf]
+  - family: tv4
+    market: se
+    aliases: [TV4 Play, TV4 Sport, TV4 Hockey, TV4 Fotboll, Sportkanalen]
+  - family: max
+    market: se
+    aliases: [Max, HBO Max, Discovery+, Eurosport, Eurosport 1, Eurosport 2]
+  - family: svt
+    market: se
+    aliases: [SVT, SVT Play, SVT1, SVT2]
+  - family: bandy_bonnier
+    market: se
+    aliases: [Expressen, Bandypuls, Bonnier News Local, NTM]
+  - family: paramount
+    market: us
+    aliases: [Paramount+, CBS, CBS Sports, CBS Sports Network]
+  - family: peacock
+    market: us
+    aliases: [Peacock, NBC, NBC Sports, USA Network, Golf Channel]
+  - family: espn
+    market: us
+    aliases: [ESPN+, ESPN]
+  - family: fox
+    market: us
+    aliases: [FOX, FS1, FOX One, FOX Sports, Tubi]
+  - family: sky
+    market: uk
+    aliases: [Sky Sports, Sky Sports Premier League, Sky Sports Golf, Sky Sports Main Event]
+  - family: tnt
+    market: uk
+    aliases: [TNT Sports, TNT Sports 1, TNT Sports 2, TNT Sports Ultimate, HBO Max]

@@ -1,0 +1,138 @@
+sources:
+  - name: pga_schedule
+    competition: pga_tour
+    kind: event
+    parser: pga_tour_schedule
+    url: https://www.pgatour.com/schedule
+    fixture_path: tests/fixtures/pga_schedule_readability.md
+    fetch_mode: auto
+    season: 2026
+  - name: pga_broadcast_schedule_events
+    competition: pga_tour
+    kind: event
+    parser: pga_tour_broadcast_events
+    url: https://pgatourmedia.pgatourhq.com/broadcast-schedule
+    fixture_path: tests/fixtures/pga_broadcast_schedule_readability.md
+    fetch_mode: auto
+    season: 2026
+  - name: pga_broadcast_schedule_watch
+    competition: pga_tour
+    kind: watch
+    parser: pga_tour_broadcast_watch
+    url: https://pgatourmedia.pgatourhq.com/broadcast-schedule
+    fixture_path: tests/fixtures/pga_broadcast_schedule_readability.md
+    fetch_mode: auto
+    season: 2026
+  - name: pga_svenskgolf_watch
+    competition: pga_tour
+    kind: watch
+    parser: pga_tour_svensk_golf_watch
+    url: https://www.svenskgolf.se/sidor/har-ar-veckans-livesandningar/
+    fixture_path: tests/fixtures/pga_svenskgolf_weekly.md
+    fetch_mode: auto
+    season: 2026
+  - name: allsvenskan_matches
+    competition: allsvenskan
+    kind: event
+    parser: allsvenskan
+    url: https://gql.sportomedia.se/graphql
+    request_method: post
+    request_body: |
+      {"query":"query matchesForLeague($configLeagueName: String!, $configSeasonStartYear: Int!, $startDate: String, $endDate: String) { matchesForLeague(configLeagueName: $configLeagueName, configSeasonStartYear: $configSeasonStartYear, startDate: $startDate, endDate: $endDate) { matches { id startDate homeTeamName visitingTeamName homeTeamScore visitingTeamScore status extendedStatus period round configLeagueName homeTeamAbbrv visitingTeamAbbrv leagueName matchMinute everySportId fogisId homeTeamEverySportId homeTeamFogisId visitingTeamEverySportId visitingTeamFogisId homeTeamNameFormatted visitingTeamNameFormatted cacheVersion arenaName } } }","variables":{"configLeagueName":"allsvenskan","configSeasonStartYear":2026,"startDate":"2026-03-01","endDate":"2026-12-31"}}
+    fixture_path: tests/fixtures/allsvenskan_readability.md
+    fetch_mode: http
+    season: 2026
+  - name: tv4play_allsvenskan
+    competition: allsvenskan
+    kind: watch
+    parser: tv4play_allsvenskan
+    url: https://www.tv4play.se/kategorier/allsvenskan
+    fixture_path: tests/fixtures/tv4_allsvenskan_readability.md
+    fetch_mode: auto
+  - name: tv4play_shl
+    competition: shl
+    kind: watch
+    parser: tv4play_shl
+    url: https://www.tv4play.se/kategorier/shl
+    fixture_path: tests/fixtures/tv4_shl_readability.md
+    fetch_mode: auto
+  - name: tv4play_hockeyallsvenskan
+    competition: hockeyallsvenskan
+    kind: watch
+    parser: tv4play_hockeyallsvenskan
+    url: https://www.tv4play.se/kategorier/hockeyallsvenskan
+    fixture_path: tests/fixtures/tv4_hockeyallsvenskan_readability.md
+    fetch_mode: auto
+  - name: premier_league_bbc_fixtures
+    competition: premier_league
+    kind: event
+    parser: premier_league_bbc
+    url: https://www.bbc.com/sport/football/premier-league/scores-fixtures
+    fixture_path: tests/fixtures/premier_league_bbc_fixtures.md
+    fetch_mode: http
+    season: 2026
+  - name: viaplay_premier_league_watch
+    competition: premier_league
+    kind: watch
+    parser: viaplay_premier_league
+    url: https://viaplay.se/sport/fotboll/premier-league
+    fixture_path: tests/fixtures/viaplay_premier_league_listings.md
+    fetch_mode: auto
+  - name: champions_league_bbc_fixtures
+    competition: uefa_champions_league
+    kind: event
+    parser: champions_league_bbc
+    url: https://www.bbc.com/sport/football/champions-league/scores-fixtures
+    fixture_path: tests/fixtures/champions_league_bbc_fixtures.md
+    fetch_mode: http
+    season: 2026
+  - name: viaplay_champions_league_watch
+    competition: uefa_champions_league
+    kind: watch
+    parser: viaplay_champions_league
+    url: https://viaplay.se/sport/fotboll/uefa-champions-league
+    fixture_path: tests/fixtures/viaplay_champions_league_index.md
+    fetch_mode: auto
+  - name: fifa_world_cup_fifa_fixtures
+    competition: fifa_world_cup_2026
+    kind: event
+    parser: fifa_world_cup_fifa
+    url: https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/scores-fixtures
+    fixture_path: tests/fixtures/fifa_world_cup_fifa_fixtures.md
+    fetch_mode: browser
+    season: 2026
+  - name: shl_schedule
+    competition: shl
+    kind: event
+    parser: shl
+    url: https://www.shl.se/api/sports-v2/game-schedule?seasonUuid=xs4m9qupsi&seriesUuid=qQ9-bb0bzEWUk&gameTypeUuid=qQ9-7debq38kX&completeSeason=all&homeAway=all&allGames=all
+    fixture_path: tests/fixtures/shl_game_schedule.md
+    fetch_mode: http
+    season: 2026
+  - name: hockeyallsvenskan_schedule
+    competition: hockeyallsvenskan
+    kind: event
+    parser: hockeyallsvenskan
+    url: https://www.hockeyallsvenskan.se/api/sports-v2/game-schedule?seasonUuid=xs4m9qupsi&seriesUuid=qQ9-594cW8OWD&gameTypeUuid=qQ9-7debq38kX&completeSeason=all&homeAway=all&allGames=all
+    fixture_path: tests/fixtures/hockeyallsvenskan_game_schedule.md
+    fetch_mode: http
+    season: 2026
+  - name: elitserien_schedule
+    competition: bandy_elitserien
+    kind: event
+    parser: elitserien
+    url: https://elitserien.se/spelprogram/
+    fixture_path: tests/fixtures/elitserien_spelprogram.html
+    fetch_mode: http
+    season: 2026
+  - name: superettan_matches
+    competition: superettan
+    kind: event
+    parser: superettan
+    url: https://gql.sportomedia.se/graphql
+    request_method: post
+    request_body: |
+      {"query":"query matchesForLeague($configLeagueName: String!, $configSeasonStartYear: Int!, $startDate: String, $endDate: String) { matchesForLeague(configLeagueName: $configLeagueName, configSeasonStartYear: $configSeasonStartYear, startDate: $startDate, endDate: $endDate) { matches { id startDate homeTeamName visitingTeamName homeTeamScore visitingTeamScore status extendedStatus period round configLeagueName homeTeamAbbrv visitingTeamAbbrv leagueName matchMinute everySportId fogisId homeTeamEverySportId homeTeamFogisId visitingTeamEverySportId visitingTeamFogisId homeTeamNameFormatted visitingTeamNameFormatted cacheVersion arenaName } } }","variables":{"configLeagueName":"superettan","configSeasonStartYear":2026,"startDate":"2026-03-01","endDate":"2026-12-31"}}
+    fixture_path: tests/fixtures/superettan_svenskfotboll_round1.md
+    fetch_mode: http
+    season: 2026

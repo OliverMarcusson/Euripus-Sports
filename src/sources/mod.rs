@@ -1,0 +1,12 @@
+pub mod allsvenskan;
+pub mod champions_league;
+pub mod elitserien;
+pub mod hockeyallsvenskan;
+pub mod loader;
+pub mod pga_tour;
+pub mod premier_league;
+pub mod shl;
+pub mod superettan;
+pub mod tv4play;
+pub mod viaplay;
+pub mod world_cup;

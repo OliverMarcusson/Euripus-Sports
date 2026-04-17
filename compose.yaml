@@ -1,0 +1,26 @@
+services:
+  sports-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sports-api
+    ports:
+      - "127.0.0.1:3000:3000"
+    command:
+      - sports-api
+      - --listen
+      - 0.0.0.0:3000
+      - --database-url
+      - sqlite:///data/sports-api.db
+      - --source-fetch-mode
+      - auto
+      - --browser-command
+      - chromium
+      - --refresh-interval
+      - 10m
+    volumes:
+      - sports_api_data:/data
+    restart: unless-stopped
+
+volumes:
+  sports_api_data:

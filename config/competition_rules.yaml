@@ -1,0 +1,101 @@
+rules:
+  - competition: allsvenskan
+    market: se
+    provider_family: tv4
+    watch_type: streaming+linear
+    confidence: 0.95
+  - competition: superettan
+    market: se
+    provider_family: tv4
+    watch_type: streaming+linear
+    confidence: 0.95
+  - competition: shl
+    market: se
+    provider_family: tv4
+    watch_type: streaming+linear
+    confidence: 0.95
+  - competition: hockeyallsvenskan
+    market: se
+    provider_family: tv4
+    watch_type: streaming+linear
+    confidence: 0.95
+  - competition: bandy_elitserien
+    market: se
+    provider_family: bandy_bonnier
+    watch_type: streaming
+    confidence: 0.98
+  - competition: uefa_champions_league
+    market: se
+    provider_family: viaplay
+    watch_type: streaming+linear
+    confidence: 0.90
+  - competition: premier_league
+    market: se
+    provider_family: viaplay
+    watch_type: streaming+linear
+    confidence: 0.90
+  - competition: fifa_world_cup_2026
+    market: se
+    provider_family: tv4
+    watch_type: streaming+linear
+    confidence: 0.95
+  - competition: fifa_world_cup_2026
+    market: se
+    provider_family: svt
+    watch_type: streaming+linear
+    confidence: 0.95
+  - competition: pga_tour
+    market: se
+    provider_family: max
+    watch_type: streaming+linear
+    confidence: 0.90
+  - competition: uefa_champions_league
+    market: us
+    provider_family: paramount
+    watch_type: streaming
+    confidence: 0.98
+  - competition: premier_league
+    market: us
+    provider_family: peacock
+    watch_type: streaming+linear
+    confidence: 0.98
+  - competition: fifa_world_cup_2026
+    market: us
+    provider_family: fox
+    watch_type: streaming+linear
+    confidence: 0.99
+  - competition: pga_tour
+    market: us
+    provider_family: espn
+    watch_type: streaming
+    confidence: 0.97
+  - competition: pga_tour
+    market: us
+    provider_family: peacock
+    watch_type: streaming+linear
+    confidence: 0.95
+  - competition: pga_tour
+    market: us
+    provider_family: paramount
+    watch_type: streaming+linear
+    confidence: 0.93
+  - competition: uefa_champions_league
+    market: uk
+    provider_family: tnt
+    watch_type: streaming+linear
+    confidence: 0.95
+  - competition: premier_league
+    market: uk
+    provider_family: sky
+    watch_type: streaming+linear
+    confidence: 0.98
+  - competition: premier_league
+    market: uk
+    provider_family: tnt
+    watch_type: streaming+linear
+    confidence: 0.92
+  - competition: pga_tour
+    market: uk
+    provider_family: sky
+    watch_type: streaming+linear
+    confidence: 0.99
