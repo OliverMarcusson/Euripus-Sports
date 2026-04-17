@@ -53,6 +53,8 @@ Run:
 bash scripts/publish-image.sh
 ```
 
+Or push to `main` and let the GitHub Actions workflow publish automatically.
+
 The script:
 
 - loads `.env.selfhosted-images` if present
@@ -107,6 +109,8 @@ SPORTS_API_IMAGE_TAG=<git-sha>
 in `.env.selfhosted-images` before pulling.
 
 ## Validation
+
+If `docker compose ... pull` fails with `not found`, the image tag does not exist in GHCR yet. Publish it first or set `SPORTS_API_IMAGE_TAG` to a SHA tag that has already been published.
 
 Check the running image:
 

@@ -95,7 +95,19 @@ assert_command_available "$container_cli"
 login_ghcr_if_configured "$container_cli"
 
 echo "Pulling image(s)..."
-"$container_cli" compose "${compose_args[@]}" pull
+if ! "$container_cli" compose "${compose_args[@]}" pull; then
+  echo >&2
+  echo "Failed to pull the configured image from GHCR." >&2
+  echo "Most likely causes:" >&2
+  echo "  1. the image tag has not been published yet" >&2
+  echo "  2. you are not logged in to ghcr.io with package read access" >&2
+  echo >&2
+  echo "To publish from your workstation:" >&2
+  echo "  bash scripts/publish-image.sh" >&2
+  echo >&2
+  echo "To pull a specific published revision, set SPORTS_API_IMAGE_TAG=<git-sha> in .env.selfhosted-images." >&2
+  exit 1
+fi
 
 echo "Starting container(s)..."
 "$container_cli" compose "${compose_args[@]}" up -d

@@ -122,6 +122,8 @@ Then publish:
 bash scripts/publish-image.sh
 ```
 
+Or just push to `main` and let GitHub Actions publish automatically to GHCR.
+
 This pushes two tags:
 
 - the current git SHA
@@ -145,6 +147,8 @@ bash scripts/deploy-selfhosted.sh
 See:
 
 - `docs/SELF_HOSTED_DEPLOYMENT.md`
+
+If pull fails with `not found`, the image has not been published yet. Publish it first, or set `SPORTS_API_IMAGE_TAG` to an existing SHA tag.
 
 ## Example requests
 
