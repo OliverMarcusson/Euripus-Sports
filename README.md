@@ -86,21 +86,65 @@ Note: flags must come before `refresh`.
 
 ## Docker
 
-Run with Docker Compose:
+### Local build-from-source compose
 
 ```bash
 docker compose up --build
 ```
 
-The compose setup binds the API to:
+The local compose setup binds the API to:
 
 - `127.0.0.1:3000`
 
-Current compose defaults:
+Current local compose defaults:
 
 - `--source-fetch-mode auto`
 - `--browser-command chromium`
 - `--refresh-interval 10m`
+
+### Publish to GHCR
+
+To speed up deployments, this repo also supports publishing a prebuilt image to GitHub Container Registry.
+
+Default image:
+
+- `ghcr.io/olivermarcusson/euripus-sports-api`
+
+Copy the example env file:
+
+```bash
+cp .env.selfhosted-images.example .env.selfhosted-images
+```
+
+Then publish:
+
+```bash
+bash scripts/publish-image.sh
+```
+
+This pushes two tags:
+
+- the current git SHA
+- `selfhosted-latest`
+
+### Server pull/deploy flow
+
+Use the GHCR-based compose file on your server:
+
+```bash
+docker compose --env-file .env.selfhosted-images -f compose.selfhosted.yml pull
+docker compose --env-file .env.selfhosted-images -f compose.selfhosted.yml up -d
+```
+
+Or use the helper script:
+
+```bash
+bash scripts/deploy-selfhosted.sh
+```
+
+See:
+
+- `docs/SELF_HOSTED_DEPLOYMENT.md`
 
 ## Example requests
 

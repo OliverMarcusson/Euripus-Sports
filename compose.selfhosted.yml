@@ -1,0 +1,24 @@
+services:
+  sports-api:
+    image: ${SPORTS_API_IMAGE:-ghcr.io/olivermarcusson/euripus-sports-api}:${SPORTS_API_IMAGE_TAG:-selfhosted-latest}
+    container_name: sports-api
+    ports:
+      - "127.0.0.1:${SPORTS_API_PORT:-3000}:3000"
+    command:
+      - sports-api
+      - --listen
+      - 0.0.0.0:3000
+      - --database-url
+      - sqlite:///data/sports-api.db
+      - --source-fetch-mode
+      - ${SPORTS_API_SOURCE_FETCH_MODE:-auto}
+      - --browser-command
+      - ${SPORTS_API_BROWSER_COMMAND:-chromium}
+      - --refresh-interval
+      - ${SPORTS_API_REFRESH_INTERVAL:-10m}
+    volumes:
+      - sports_api_data:/data
+    restart: unless-stopped
+
+volumes:
+  sports_api_data:
