@@ -60,6 +60,7 @@ pub enum ParserKind {
     PgaTourBroadcastEvents,
     PgaTourBroadcastWatch,
     PgaTourSvenskGolfWatch,
+    Formula1RaceTimes,
     PremierLeagueBbc,
     ViaplayPremierLeague,
     ViaplayChampionsLeague,

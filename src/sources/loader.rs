@@ -5,8 +5,8 @@ use crate::{
     domain::{EventSeed, WatchOverlay},
     ingest::{FetchRequest, SourceFetchMode, SourceFetcher},
     sources::{
-        allsvenskan, champions_league, elitserien, hockeyallsvenskan, pga_tour, premier_league,
-        shl, superettan, tv4play, viaplay, world_cup,
+        allsvenskan, champions_league, elitserien, formula1, hockeyallsvenskan, pga_tour,
+        premier_league, shl, superettan, tv4play, viaplay, world_cup,
     },
 };
 
@@ -93,6 +93,12 @@ fn parse_source_body(
                     body,
                     source.season.unwrap_or(current_season()),
                 ));
+        }
+        (SourceKind::Event, ParserKind::Formula1RaceTimes) => {
+            parsed.events.extend(formula1::parse_race_times_document(
+                body,
+                source.season.unwrap_or(current_season()),
+            ));
         }
         (SourceKind::Event, ParserKind::PremierLeagueBbc) => {
             parsed.events.extend(premier_league::parse_bbc_fixtures(

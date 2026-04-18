@@ -1,6 +1,7 @@
 pub mod allsvenskan;
 pub mod champions_league;
 pub mod elitserien;
+pub mod formula1;
 pub mod hockeyallsvenskan;
 pub mod loader;
 pub mod pga_tour;

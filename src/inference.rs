@@ -156,6 +156,7 @@ fn preferred_channel(
         ("tv4", "soccer") => Some("TV4 Fotboll".into()),
         ("tv4", "hockey") => Some("TV4 Hockey".into()),
         ("viaplay", "soccer") => Some("V Sport Football".into()),
+        ("viaplay", "motorsport") => Some("Viaplay".into()),
         ("sky", "soccer") => Some("Sky Sports Premier League".into()),
         ("sky", "golf") => Some("Sky Sports Golf".into()),
         ("peacock", "soccer") => Some("Peacock".into()),
@@ -173,16 +174,23 @@ fn provider_search_hints(
     provider_label: &str,
     channel_name: Option<&str>,
 ) -> Vec<String> {
-    let mut hints = vec![
-        format!("{} {}", seed.participants.home, seed.participants.away),
-        format!(
+    let mut hints = vec![format!("{} {}", seed.title, provider_label)];
+
+    if is_field_event(seed) {
+        hints.push(format!("{} {}", readable_competition(&seed.competition), seed.title));
+        if seed.competition == "formula_1" {
+            hints.push(format!("Formula 1 {}", seed.title));
+            hints.push(format!("F1 {} {}", seed.title, provider_label));
+        }
+    } else {
+        hints.push(format!("{} {}", seed.participants.home, seed.participants.away));
+        hints.push(format!(
             "{} {} {}",
             readable_competition(&seed.competition),
             seed.participants.home,
             seed.participants.away
-        ),
-        format!("{} {}", seed.title, provider_label),
-    ];
+        ));
+    }
 
     if seed.sport == "golf" {
         hints.push(format!(
@@ -204,16 +212,23 @@ fn provider_search_hints(
 }
 
 fn base_queries(seed: &EventSeed) -> Vec<String> {
-    let mut queries = vec![
-        format!("{} {}", seed.participants.home, seed.participants.away),
-        format!(
+    let mut queries = vec![seed.title.clone()];
+
+    if is_field_event(seed) {
+        queries.push(format!("{} {}", readable_competition(&seed.competition), seed.title));
+        if seed.competition == "formula_1" {
+            queries.push(format!("Formula 1 {}", seed.title));
+            queries.push(format!("F1 {}", seed.title));
+        }
+    } else {
+        queries.push(format!("{} {}", seed.participants.home, seed.participants.away));
+        queries.push(format!(
             "{} {} {}",
             readable_competition(&seed.competition),
             seed.participants.home,
             seed.participants.away
-        ),
-        seed.title.clone(),
-    ];
+        ));
+    }
 
     if seed.sport == "golf" {
         queries.push(format!(
@@ -229,12 +244,18 @@ fn base_queries(seed: &EventSeed) -> Vec<String> {
 }
 
 fn keywords(seed: &EventSeed) -> Vec<String> {
-    let mut keywords = vec![
-        seed.sport.clone(),
-        seed.competition.clone(),
-        seed.participants.home.clone(),
-        seed.participants.away.clone(),
-    ];
+    let mut keywords = vec![seed.sport.clone(), seed.competition.clone(), seed.title.clone()];
+
+    if is_field_event(seed) {
+        if seed.competition == "formula_1" {
+            keywords.push("f1".into());
+            keywords.push("formula 1".into());
+        }
+        keywords.push(seed.participants.home.clone());
+    } else {
+        keywords.push(seed.participants.home.clone());
+        keywords.push(seed.participants.away.clone());
+    }
 
     if let Some(round) = &seed.round_label {
         keywords.push(round.clone());
@@ -243,6 +264,10 @@ fn keywords(seed: &EventSeed) -> Vec<String> {
     keywords.sort();
     keywords.dedup();
     keywords
+}
+
+fn is_field_event(seed: &EventSeed) -> bool {
+    seed.participants.away == "Field"
 }
 
 fn overlay_matches_event(overlay: &WatchOverlay, seed: &EventSeed) -> bool {

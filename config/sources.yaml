@@ -63,6 +63,14 @@ sources:
     url: https://www.tv4play.se/kategorier/hockeyallsvenskan
     fixture_path: tests/fixtures/tv4_hockeyallsvenskan_readability.md
     fetch_mode: auto
+  - name: formula1_race_times
+    competition: formula_1
+    kind: event
+    parser: formula1_race_times
+    url: https://www.formula1.com/en/latest/article/official-grand-prix-start-times-for-2026-f1-season-confirmed.2UgPfArqH76tzlOYh21jSG
+    fixture_path: tests/fixtures/formula1_2026_start_times.html
+    fetch_mode: auto
+    season: 2026
   - name: premier_league_bbc_fixtures
     competition: premier_league
     kind: event

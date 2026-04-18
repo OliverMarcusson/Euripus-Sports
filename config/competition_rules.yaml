@@ -49,6 +49,11 @@ rules:
     provider_family: max
     watch_type: streaming+linear
     confidence: 0.90
+  - competition: formula_1
+    market: se
+    provider_family: viaplay
+    watch_type: streaming+linear
+    confidence: 0.98
   - competition: uefa_champions_league
     market: us
     provider_family: paramount

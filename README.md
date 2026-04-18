@@ -22,6 +22,7 @@ Implemented or largely implemented:
 - Premier League
 - UEFA Champions League
 - FIFA World Cup 2026
+- Formula 1
 - SHL
 - HockeyAllsvenskan
 - Bandy Elitserien

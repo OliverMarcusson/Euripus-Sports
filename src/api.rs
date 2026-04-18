@@ -133,19 +133,22 @@ mod tests {
     use axum::{body::Body, http::Request};
     use tower::ServiceExt;
 
-    #[tokio::test]
-    async fn providers_endpoint_works() {
-        let config = AppConfig::load(
+    fn test_config() -> AppConfig {
+        AppConfig::load(
             "config/providers.yaml",
             "config/competition_rules.yaml",
             "config/sample_events.yaml",
             "config/sources.yaml",
             "config/team_aliases.yaml",
         )
-        .unwrap();
+        .unwrap()
+    }
+
+    #[tokio::test]
+    async fn providers_endpoint_works() {
         let app = router(std::sync::Arc::new(
             AppState::new(
-                config,
+                test_config(),
                 "sqlite::memory:",
                 SourceFetchMode::Fixture,
                 "agent-browser",
@@ -157,6 +160,30 @@ mod tests {
             .oneshot(
                 Request::builder()
                     .uri("/v1/providers")
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn formula1_competition_endpoint_works() {
+        let app = router(std::sync::Arc::new(
+            AppState::new(
+                test_config(),
+                "sqlite::memory:",
+                SourceFetchMode::Fixture,
+                "agent-browser",
+            )
+            .await
+            .unwrap(),
+        ));
+        let response = app
+            .oneshot(
+                Request::builder()
+                    .uri("/v1/competitions/formula_1")
                     .body(Body::empty())
                     .unwrap(),
             )

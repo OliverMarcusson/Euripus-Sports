@@ -27,6 +27,7 @@ Fully or mostly implemented:
 - Premier League
 - UEFA Champions League
 - FIFA World Cup
+- Formula 1
 - SHL
 - HockeyAllsvenskan
 - Bandy Elitserien
