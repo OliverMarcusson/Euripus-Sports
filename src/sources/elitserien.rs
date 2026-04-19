@@ -7,8 +7,24 @@ const STOCKHOLM: UtcOffset = offset!(+2);
 const SOURCE_URL: &str = "https://elitserien.se/spelprogram/";
 
 pub fn parse_schedule_document(input: &str, season: i32) -> Vec<EventSeed> {
+    parse_schedule_document_for_competition(
+        input,
+        season,
+        "bandy_elitserien",
+        "tr.men-team",
+        "elitserien-schedule",
+    )
+}
+
+pub fn parse_schedule_document_for_competition(
+    input: &str,
+    season: i32,
+    competition: &str,
+    row_selector: &str,
+    source_name: &str,
+) -> Vec<EventSeed> {
     let document = Html::parse_document(input);
-    let row_selector = Selector::parse("tr.men-team").unwrap();
+    let row_selector = Selector::parse(row_selector).unwrap();
     let cell_selector = Selector::parse("td").unwrap();
     let link_selector = Selector::parse("a").unwrap();
 
@@ -47,7 +63,8 @@ pub fn parse_schedule_document(input: &str, season: i32) -> Vec<EventSeed> {
 
         events.push(EventSeed {
             id: format!(
-                "bandy_elitserien_{}_{:02}_{:02}_{}_{}",
+                "{}_{}_{:02}_{:02}_{}_{}",
+                competition,
                 season,
                 date.month() as u8,
                 date.day(),
@@ -55,7 +72,7 @@ pub fn parse_schedule_document(input: &str, season: i32) -> Vec<EventSeed> {
                 slugify(&away)
             ),
             sport: "bandy".into(),
-            competition: "bandy_elitserien".into(),
+            competition: competition.into(),
             title: format!("{} vs {}", home, away),
             start_time,
             end_time: Some(start_time + time::Duration::hours(2)),
@@ -63,7 +80,7 @@ pub fn parse_schedule_document(input: &str, season: i32) -> Vec<EventSeed> {
             venue: None,
             round_label: None,
             participants: Participants { home, away },
-            source: "elitserien-schedule".into(),
+            source: source_name.into(),
             source_url: report_url,
         });
     }
@@ -156,6 +173,23 @@ mod tests {
         assert!(events.iter().any(|event| {
             event.title == "Västerås SK vs Villa-Lidköping BK"
                 && event.start_time.to_string().contains("2026-03-02")
+        }));
+    }
+
+    #[test]
+    fn parses_elitserien_dam_schedule_table() {
+        let input = include_str!("../../tests/fixtures/elitserien_dam_spelprogram.html");
+        let events = parse_schedule_document_for_competition(
+            input,
+            2026,
+            "bandy_elitserien_dam",
+            "tr.women-team",
+            "elitserien-dam-schedule",
+        );
+        assert_eq!(events.len(), 2);
+        assert!(events.iter().any(|event| {
+            event.title == "Västerås SK vs Villa-Lidköping BK"
+                && event.competition == "bandy_elitserien_dam"
         }));
     }
 }

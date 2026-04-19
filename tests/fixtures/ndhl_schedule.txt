@@ -1,0 +1,4 @@
+# phase|date|time|home|away|venue
+Östra|2025-10-12|16:00|AIK|SDE HF|Ulriksdals IP
+Södra Vår|2026-01-18|13:30|Göteborg HC|Hanhals IF|Angered Arena
+Kval|2026-03-22|15:00|SDE HF|Göteborg HC|Enebybergs Ishall

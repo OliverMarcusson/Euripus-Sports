@@ -53,6 +53,8 @@ pub enum SourceRequestMethod {
 #[serde(rename_all = "snake_case")]
 pub enum ParserKind {
     Allsvenskan,
+    Damallsvenskan,
+    Elitettan,
     Tv4playAllsvenskan,
     Tv4playShl,
     Tv4playHockeyallsvenskan,
@@ -60,6 +62,8 @@ pub enum ParserKind {
     PgaTourBroadcastEvents,
     PgaTourBroadcastWatch,
     PgaTourSvenskGolfWatch,
+    LpgaTourSchedule,
+    LpgaTourSvenskGolfWatch,
     Formula1RaceTimes,
     PremierLeagueBbc,
     ViaplayPremierLeague,
@@ -67,8 +71,11 @@ pub enum ParserKind {
     ChampionsLeagueBbc,
     FifaWorldCupFifa,
     Shl,
+    Sdhl,
+    Ndhl,
     Hockeyallsvenskan,
     Elitserien,
+    ElitserienDam,
     Superettan,
     SuperettanSvenskfotboll,
 }

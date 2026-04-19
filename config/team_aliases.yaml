@@ -167,3 +167,60 @@ teams:
   - competition: bandy_elitserien
     canonical: Edsbyns IF Bandyförening
     aliases: [Edsbyns IF Bandyförening, Edsbyns IF]
+  - competition: damallsvenskan
+    canonical: Hammarby IF
+    aliases: [Hammarby IF, Hammarby]
+  - competition: damallsvenskan
+    canonical: BK Häcken
+    aliases: [BK Häcken, Häcken]
+  - competition: damallsvenskan
+    canonical: FC Rosengård
+    aliases: [FC Rosengård, Rosengård]
+  - competition: damallsvenskan
+    canonical: Piteå IF
+    aliases: [Piteå IF]
+  - competition: elitettan
+    canonical: Mallbackens IF
+    aliases: [Mallbackens IF]
+  - competition: elitettan
+    canonical: Jitex BK
+    aliases: [Jitex BK]
+  - competition: elitettan
+    canonical: IK Uppsala
+    aliases: [IK Uppsala]
+  - competition: elitettan
+    canonical: Bollstanäs SK
+    aliases: [Bollstanäs SK]
+  - competition: sdhl
+    canonical: Luleå Hockey/MSSK
+    aliases: [Luleå Hockey/MSSK, Luleå Hockey, Luleå/MSSK]
+  - competition: sdhl
+    canonical: Frölunda HC
+    aliases: [Frölunda HC]
+  - competition: sdhl
+    canonical: Brynäs IF
+    aliases: [Brynäs IF]
+  - competition: sdhl
+    canonical: Modo Hockey
+    aliases: [Modo Hockey, MoDo Hockey]
+  - competition: ndhl
+    canonical: AIK
+    aliases: [AIK]
+  - competition: ndhl
+    canonical: SDE HF
+    aliases: [SDE HF, SDE]
+  - competition: ndhl
+    canonical: Göteborg HC
+    aliases: [Göteborg HC]
+  - competition: ndhl
+    canonical: Hanhals IF
+    aliases: [Hanhals IF]
+  - competition: bandy_elitserien_dam
+    canonical: Västerås SK
+    aliases: [Västerås SK]
+  - competition: bandy_elitserien_dam
+    canonical: Villa-Lidköping BK
+    aliases: [Villa-Lidköping BK, Villa Lidköping]
+  - competition: bandy_elitserien_dam
+    canonical: Skirö AIK
+    aliases: [Skirö AIK]

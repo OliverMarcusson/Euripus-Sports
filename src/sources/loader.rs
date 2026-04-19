@@ -5,8 +5,9 @@ use crate::{
     domain::{EventSeed, WatchOverlay},
     ingest::{FetchRequest, SourceFetchMode, SourceFetcher},
     sources::{
-        allsvenskan, champions_league, elitserien, formula1, hockeyallsvenskan, pga_tour,
-        premier_league, shl, superettan, tv4play, viaplay, world_cup,
+        allsvenskan, champions_league, damallsvenskan, elitettan, elitserien, formula1,
+        hockeyallsvenskan, lpga_tour, ndhl, pga_tour, premier_league, sdhl, shl, superettan,
+        tv4play, viaplay, world_cup,
     },
 };
 
@@ -44,6 +45,20 @@ fn parse_source_body(
     match (source.kind.clone(), source.parser.clone()) {
         (SourceKind::Event, ParserKind::Allsvenskan) => {
             parsed.events.extend(allsvenskan::parse_document(
+                body,
+                source.season.unwrap_or(current_season()),
+                config,
+            ));
+        }
+        (SourceKind::Event, ParserKind::Damallsvenskan) => {
+            parsed.events.extend(damallsvenskan::parse_document(
+                body,
+                source.season.unwrap_or(current_season()),
+                config,
+            ));
+        }
+        (SourceKind::Event, ParserKind::Elitettan) => {
+            parsed.events.extend(elitettan::parse_document(
                 body,
                 source.season.unwrap_or(current_season()),
                 config,
@@ -94,6 +109,20 @@ fn parse_source_body(
                     source.season.unwrap_or(current_season()),
                 ));
         }
+        (SourceKind::Event, ParserKind::LpgaTourSchedule) => {
+            parsed.events.extend(lpga_tour::parse_schedule_document(
+                body,
+                source.season.unwrap_or(current_season()),
+            ));
+        }
+        (SourceKind::Watch, ParserKind::LpgaTourSvenskGolfWatch) => {
+            parsed
+                .watch_overlays
+                .extend(lpga_tour::parse_svensk_golf_watch_document(
+                    body,
+                    source.season.unwrap_or(current_season()),
+                ));
+        }
         (SourceKind::Event, ParserKind::Formula1RaceTimes) => {
             parsed.events.extend(formula1::parse_race_times_document(
                 body,
@@ -131,6 +160,20 @@ fn parse_source_body(
                 source.season.unwrap_or(current_season()),
             ));
         }
+        (SourceKind::Event, ParserKind::Sdhl) => {
+            parsed.events.extend(sdhl::parse_schedule_document(
+                body,
+                source.season.unwrap_or(current_season()),
+                config,
+            ));
+        }
+        (SourceKind::Event, ParserKind::Ndhl) => {
+            parsed.events.extend(ndhl::parse_schedule_document(
+                body,
+                source.season.unwrap_or(current_season()),
+                config,
+            ));
+        }
         (SourceKind::Event, ParserKind::Hockeyallsvenskan) => {
             parsed
                 .events
@@ -145,6 +188,17 @@ fn parse_source_body(
                 body,
                 source.season.unwrap_or(current_season()),
             ));
+        }
+        (SourceKind::Event, ParserKind::ElitserienDam) => {
+            parsed
+                .events
+                .extend(elitserien::parse_schedule_document_for_competition(
+                    body,
+                    source.season.unwrap_or(current_season()),
+                    "bandy_elitserien_dam",
+                    "tr.women-team",
+                    "elitserien-dam-schedule",
+                ));
         }
         (SourceKind::Event, ParserKind::Superettan) => {
             parsed.events.extend(superettan::parse_document(

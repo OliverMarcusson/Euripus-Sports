@@ -157,8 +157,11 @@ fn preferred_channel(
         ("tv4", "hockey") => Some("TV4 Hockey".into()),
         ("viaplay", "soccer") => Some("V Sport Football".into()),
         ("viaplay", "motorsport") => Some("Viaplay".into()),
+        ("apple", "motorsport") => Some("Apple TV".into()),
         ("sky", "soccer") => Some("Sky Sports Premier League".into()),
         ("sky", "golf") => Some("Sky Sports Golf".into()),
+        ("sky", "motorsport") => Some("Sky Sports F1".into()),
+        ("channel4", "motorsport") => Some("Channel 4".into()),
         ("peacock", "soccer") => Some("Peacock".into()),
         ("peacock", "golf") => Some("Golf Channel".into()),
         ("paramount", "soccer") => Some("Paramount+".into()),
@@ -177,13 +180,20 @@ fn provider_search_hints(
     let mut hints = vec![format!("{} {}", seed.title, provider_label)];
 
     if is_field_event(seed) {
-        hints.push(format!("{} {}", readable_competition(&seed.competition), seed.title));
+        hints.push(format!(
+            "{} {}",
+            readable_competition(&seed.competition),
+            seed.title
+        ));
         if seed.competition == "formula_1" {
             hints.push(format!("Formula 1 {}", seed.title));
             hints.push(format!("F1 {} {}", seed.title, provider_label));
         }
     } else {
-        hints.push(format!("{} {}", seed.participants.home, seed.participants.away));
+        hints.push(format!(
+            "{} {}",
+            seed.participants.home, seed.participants.away
+        ));
         hints.push(format!(
             "{} {} {}",
             readable_competition(&seed.competition),
@@ -215,13 +225,20 @@ fn base_queries(seed: &EventSeed) -> Vec<String> {
     let mut queries = vec![seed.title.clone()];
 
     if is_field_event(seed) {
-        queries.push(format!("{} {}", readable_competition(&seed.competition), seed.title));
+        queries.push(format!(
+            "{} {}",
+            readable_competition(&seed.competition),
+            seed.title
+        ));
         if seed.competition == "formula_1" {
             queries.push(format!("Formula 1 {}", seed.title));
             queries.push(format!("F1 {}", seed.title));
         }
     } else {
-        queries.push(format!("{} {}", seed.participants.home, seed.participants.away));
+        queries.push(format!(
+            "{} {}",
+            seed.participants.home, seed.participants.away
+        ));
         queries.push(format!(
             "{} {} {}",
             readable_competition(&seed.competition),
@@ -244,7 +261,11 @@ fn base_queries(seed: &EventSeed) -> Vec<String> {
 }
 
 fn keywords(seed: &EventSeed) -> Vec<String> {
-    let mut keywords = vec![seed.sport.clone(), seed.competition.clone(), seed.title.clone()];
+    let mut keywords = vec![
+        seed.sport.clone(),
+        seed.competition.clone(),
+        seed.title.clone(),
+    ];
 
     if is_field_event(seed) {
         if seed.competition == "formula_1" {
@@ -362,5 +383,55 @@ mod tests {
         let event = hydrate_event(seed, &config);
         assert_eq!(event.watch.recommended_market.as_deref(), Some("se"));
         assert_eq!(event.watch.recommended_provider.as_deref(), Some("Viaplay"));
+    }
+
+    #[test]
+    fn formula1_includes_us_and_uk_providers() {
+        let config = config();
+        let seed = EventSeed {
+            id: "formula_1_2026_05_03_miami".into(),
+            sport: "motorsport".into(),
+            competition: "formula_1".into(),
+            title: "Miami Grand Prix".into(),
+            start_time: time::OffsetDateTime::parse(
+                "2026-05-03T22:00:00+02:00",
+                &time::format_description::well_known::Rfc3339,
+            )
+            .unwrap(),
+            end_time: None,
+            status: EventStatus::Upcoming,
+            venue: Some("Miami International Autodrome".into()),
+            round_label: Some("Round 6".into()),
+            participants: Participants {
+                home: "Miami Grand Prix".into(),
+                away: "Field".into(),
+            },
+            source: "test".into(),
+            source_url: "https://example.com".into(),
+        };
+
+        let event = hydrate_event(&seed, &config);
+        assert_eq!(event.watch.recommended_market.as_deref(), Some("se"));
+        assert!(event
+            .watch
+            .availabilities
+            .iter()
+            .any(|availability| availability.market == "us"
+                && availability.provider_family == "apple"
+                && availability.provider_label == "Apple TV"));
+        assert!(event
+            .watch
+            .availabilities
+            .iter()
+            .any(|availability| availability.market == "uk"
+                && availability.provider_family == "sky"
+                && availability.channel_name.as_deref() == Some("Sky Sports F1")));
+        assert!(event
+            .watch
+            .availabilities
+            .iter()
+            .any(|availability| availability.market == "uk"
+                && availability.provider_family == "channel4"
+                && availability.channel_name.as_deref() == Some("Channel 4")));
     }
 }

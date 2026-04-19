@@ -54,6 +54,41 @@ rules:
     provider_family: viaplay
     watch_type: streaming+linear
     confidence: 0.98
+  - competition: damallsvenskan
+    market: se
+    provider_family: viaplay
+    watch_type: streaming+linear
+    confidence: 0.94
+  - competition: sdhl
+    market: se
+    provider_family: youtube
+    watch_type: streaming
+    confidence: 0.92
+  - competition: bandy_elitserien_dam
+    market: se
+    provider_family: bandy_bonnier
+    watch_type: streaming
+    confidence: 0.96
+  - competition: lpga_tour
+    market: se
+    provider_family: viaplay
+    watch_type: streaming+linear
+    confidence: 0.91
+  - competition: formula_1
+    market: us
+    provider_family: apple
+    watch_type: streaming
+    confidence: 0.99
+  - competition: formula_1
+    market: uk
+    provider_family: sky
+    watch_type: streaming+linear
+    confidence: 0.99
+  - competition: formula_1
+    market: uk
+    provider_family: channel4
+    watch_type: linear-tv
+    confidence: 0.82
   - competition: uefa_champions_league
     market: us
     provider_family: paramount

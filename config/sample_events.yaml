@@ -111,3 +111,87 @@ events:
       away: Tunisia
     source: official
     source_url: https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/scores-fixtures
+  - id: damallsvenskan_2026_701001
+    sport: soccer
+    competition: damallsvenskan
+    title: Hammarby IF vs BK Häcken
+    start_time: "2026-04-18T13:00:00+02:00"
+    end_time: "2026-04-18T15:00:00+02:00"
+    status: upcoming
+    venue: Hammarby IP
+    round_label: Round 3
+    participants:
+      home: Hammarby IF
+      away: BK Häcken
+    source: official
+    source_url: https://www.obosdamallsvenskan.se/
+  - id: elitettan_2026_702001
+    sport: soccer
+    competition: elitettan
+    title: Mallbackens IF vs Jitex BK
+    start_time: "2026-04-11T14:00:00+02:00"
+    end_time: "2026-04-11T16:00:00+02:00"
+    status: upcoming
+    venue: Strandvallen
+    round_label: Round 2
+    participants:
+      home: Mallbackens IF
+      away: Jitex BK
+    source: official
+    source_url: https://www.elitettan.se/
+  - id: sdhl_2026_10_03_lulea_hockey_mssk_frolunda_hc
+    sport: hockey
+    competition: sdhl
+    title: Luleå Hockey/MSSK vs Frölunda HC
+    start_time: "2025-10-03T19:00:00+02:00"
+    end_time: "2025-10-03T21:30:00+02:00"
+    status: upcoming
+    venue: Coop Norrbotten Arena
+    round_label: Grundserie
+    participants:
+      home: Luleå Hockey/MSSK
+      away: Frölunda HC
+    source: official
+    source_url: https://www.sdhl.se/game-schedule
+  - id: ndhl_2026_10_12_aik_sde_hf
+    sport: hockey
+    competition: ndhl
+    title: AIK vs SDE HF
+    start_time: "2025-10-12T16:00:00+02:00"
+    end_time: "2025-10-12T18:30:00+02:00"
+    status: upcoming
+    venue: Ulriksdals IP
+    round_label: Östra
+    participants:
+      home: AIK
+      away: SDE HF
+    source: official
+    source_url: https://stats.swehockey.se/
+  - id: bandy_elitserien_dam_2026_02_28_vasteras_sk_villa_lidkoping_bk
+    sport: bandy
+    competition: bandy_elitserien_dam
+    title: Västerås SK vs Villa-Lidköping BK
+    start_time: "2026-02-28T14:00:00+02:00"
+    end_time: "2026-02-28T16:00:00+02:00"
+    status: finished
+    venue: null
+    round_label: null
+    participants:
+      home: Västerås SK
+      away: Villa-Lidköping BK
+    source: official
+    source_url: https://elitserien.se/spelprogram/
+  - id: lpga_tour_2026_jm_eagle_la_championship
+    sport: golf
+    competition: lpga_tour
+    title: JM Eagle LA Championship
+    start_time: "2026-04-16T13:00:00+02:00"
+    end_time: "2026-04-20T13:00:00+02:00"
+    status: upcoming
+    venue: El Caballero Country Club
+    round_label: Tournament
+    participants:
+      home: JM Eagle LA Championship
+      away: Field
+    source: official
+    source_url: https://www.lpga.com/tournaments?year=2026

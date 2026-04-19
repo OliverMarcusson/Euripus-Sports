@@ -144,3 +144,65 @@ sources:
     fixture_path: tests/fixtures/superettan_svenskfotboll_round1.md
     fetch_mode: http
     season: 2026
+  - name: damallsvenskan_matches
+    competition: damallsvenskan
+    kind: event
+    parser: damallsvenskan
+    url: https://gql.sportomedia.se/graphql
+    request_method: post
+    request_body: |
+      {"query":"query matchesForLeague($configLeagueName: String!, $configSeasonStartYear: Int!, $startDate: String, $endDate: String) { matchesForLeague(configLeagueName: $configLeagueName, configSeasonStartYear: $configSeasonStartYear, startDate: $startDate, endDate: $endDate) { matches { fogisId startDate homeTeamName visitingTeamName status round arenaName } } }","variables":{"configLeagueName":"damallsvenskan","configSeasonStartYear":2026,"startDate":"2026-03-01","endDate":"2026-12-31"}}
+    fixture_path: tests/fixtures/damallsvenskan_graphql.json
+    fetch_mode: http
+    season: 2026
+  - name: elitettan_matches
+    competition: elitettan
+    kind: event
+    parser: elitettan
+    url: https://gql.sportomedia.se/graphql
+    request_method: post
+    request_body: |
+      {"query":"query matchesForLeague($configLeagueName: String!, $configSeasonStartYear: Int!, $startDate: String, $endDate: String) { matchesForLeague(configLeagueName: $configLeagueName, configSeasonStartYear: $configSeasonStartYear, startDate: $startDate, endDate: $endDate) { matches { fogisId startDate homeTeamName visitingTeamName status round arenaName } } }","variables":{"configLeagueName":"elitettan","configSeasonStartYear":2026,"startDate":"2026-03-01","endDate":"2026-12-31"}}
+    fixture_path: tests/fixtures/elitettan_graphql.json
+    fetch_mode: http
+    season: 2026
+  - name: sdhl_schedule
+    competition: sdhl
+    kind: event
+    parser: sdhl
+    url: https://www.sdhl.se/api/sports-v2/game-schedule
+    fixture_path: tests/fixtures/sdhl_game_schedule.json
+    fetch_mode: http
+    season: 2026
+  - name: ndhl_schedule
+    competition: ndhl
+    kind: event
+    parser: ndhl
+    url: https://stats.swehockey.se/
+    fixture_path: tests/fixtures/ndhl_schedule.txt
+    fetch_mode: fixture
+    season: 2026
+  - name: elitserien_dam_schedule
+    competition: bandy_elitserien_dam
+    kind: event
+    parser: elitserien_dam
+    url: https://elitserien.se/spelprogram/
+    fixture_path: tests/fixtures/elitserien_dam_spelprogram.html
+    fetch_mode: http
+    season: 2026
+  - name: lpga_schedule
+    competition: lpga_tour
+    kind: event
+    parser: lpga_tour_schedule
+    url: https://www.lpga.com/tournaments?year=2026
+    fixture_path: tests/fixtures/lpga_schedule_2026.html
+    fetch_mode: auto
+    season: 2026
+  - name: lpga_svenskgolf_watch
+    competition: lpga_tour
+    kind: watch
+    parser: lpga_tour_svensk_golf_watch
+    url: https://www.svenskgolf.se/sidor/har-ar-veckans-livesandningar/
+    fixture_path: tests/fixtures/lpga_svenskgolf_weekly.md
+    fetch_mode: auto
+    season: 2026

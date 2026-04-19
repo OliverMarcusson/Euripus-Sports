@@ -29,7 +29,10 @@ pub fn parse_race_times_document(input: &str, season: i32) -> Vec<EventSeed> {
         }
 
         for row in table.select(&row_selector) {
-            let cells = row.select(&cell_selector).map(text_content).collect::<Vec<_>>();
+            let cells = row
+                .select(&cell_selector)
+                .map(text_content)
+                .collect::<Vec<_>>();
             if cells.len() < 4 {
                 continue;
             }
@@ -313,8 +316,14 @@ mod tests {
             .find(|event| event.id == "formula_1_2026_05_03_miami")
             .unwrap();
         assert_eq!(miami.title, "Miami Grand Prix");
-        assert_eq!(miami.start_time.to_string(), "2026-05-03 22:00:00.0 +02:00:00");
+        assert_eq!(
+            miami.start_time.to_string(),
+            "2026-05-03 22:00:00.0 +02:00:00"
+        );
         assert_eq!(miami.round_label.as_deref(), Some("Round 6"));
-        assert_eq!(miami.venue.as_deref(), Some("Miami International Autodrome"));
+        assert_eq!(
+            miami.venue.as_deref(),
+            Some("Miami International Autodrome")
+        );
     }
 }

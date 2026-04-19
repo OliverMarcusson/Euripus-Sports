@@ -14,6 +14,9 @@ providers:
   - family: bandy_bonnier
     market: se
     aliases: [Expressen, Bandypuls, Bonnier News Local, NTM]
+  - family: youtube
+    market: se
+    aliases: [YouTube, SDHL Play, SDHL YouTube]
   - family: paramount
     market: us
     aliases: [Paramount+, CBS, CBS Sports, CBS Sports Network]
@@ -23,12 +26,18 @@ providers:
   - family: espn
     market: us
     aliases: [ESPN+, ESPN]
+  - family: apple
+    market: us
+    aliases: [Apple TV]
   - family: fox
     market: us
     aliases: [FOX, FS1, FOX One, FOX Sports, Tubi]
   - family: sky
     market: uk
-    aliases: [Sky Sports, Sky Sports Premier League, Sky Sports Golf, Sky Sports Main Event]
+    aliases: [Sky Sports, Sky Sports Premier League, Sky Sports Golf, Sky Sports Main Event, Sky Sports F1]
+  - family: channel4
+    market: uk
+    aliases: [Channel 4, Channel 4 Streaming]
   - family: tnt
     market: uk
     aliases: [TNT Sports, TNT Sports 1, TNT Sports 2, TNT Sports Ultimate, HBO Max]
