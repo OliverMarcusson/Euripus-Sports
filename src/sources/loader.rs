@@ -20,7 +20,19 @@ pub async fn load_configured_sources(
     let mut watch_overlays = Vec::new();
 
     for source in &config.sources {
-        let body = load_source_body(source, fetch_mode_override, fetcher).await?;
+        let body = match load_source_body(source, fetch_mode_override, fetcher).await {
+            Ok(body) => body,
+            Err(error) => {
+                tracing::error!(
+                    source = source.name,
+                    competition = source.competition,
+                    parser = ?source.parser,
+                    error = %error,
+                    "configured source failed; continuing with remaining sources"
+                );
+                continue;
+            }
+        };
         let parsed = parse_source_body(source, &body, config);
         events.extend(parsed.events);
         watch_overlays.extend(parsed.watch_overlays);

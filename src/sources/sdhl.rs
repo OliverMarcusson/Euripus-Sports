@@ -1,4 +1,5 @@
 use regex::Regex;
+use scraper::{Html, Selector};
 use serde_json::Value;
 use time::{
     format_description::well_known::Rfc3339, macros::offset, Date, Month, OffsetDateTime,
@@ -16,6 +17,9 @@ const SOURCE_URL: &str = "https://www.sdhl.se/game-schedule";
 pub fn parse_schedule_document(input: &str, season: i32, config: &AppConfig) -> Vec<EventSeed> {
     if input.trim_start().starts_with('{') {
         return parse_api_schedule_document(input, season, config);
+    }
+    if input.contains("<html") || input.contains("<!DOCTYPE html") {
+        return parse_html_schedule_document(input, season, config);
     }
 
     let date_re = Regex::new(
@@ -102,6 +106,76 @@ pub fn parse_schedule_document(input: &str, season: i32, config: &AppConfig) -> 
             season,
         ));
         index += 6;
+    }
+
+    events
+}
+
+fn parse_html_schedule_document(input: &str, season: i32, config: &AppConfig) -> Vec<EventSeed> {
+    let document = Html::parse_document(input);
+    let section_selector = Selector::parse("section.list").unwrap();
+    let date_selector = Selector::parse("h2").unwrap();
+    let row_selector = Selector::parse("li.game-schedule-row article").unwrap();
+    let label_selector = Selector::parse("h3").unwrap();
+    let venue_selector = Selector::parse(".arena-container span").unwrap();
+    let time_result_selector = Selector::parse(".time-result").unwrap();
+    let action_selector =
+        Selector::parse(".action-button a, .action-button button, .action-button").unwrap();
+
+    let mut events = Vec::new();
+    for section in document.select(&section_selector) {
+        let Some(date_label) = section.select(&date_selector).next().map(text_content) else {
+            continue;
+        };
+        let Some(date) = parse_swedish_date_label(&date_label, season) else {
+            continue;
+        };
+
+        for row in section.select(&row_selector) {
+            let Some(label) = row.select(&label_selector).next().map(text_content) else {
+                continue;
+            };
+            let Some((home_raw, away_raw)) = split_matchup(&label) else {
+                continue;
+            };
+            let home = config.canonical_team_name("sdhl", &home_raw);
+            let away = config.canonical_team_name("sdhl", &away_raw);
+            let venue = row
+                .select(&venue_selector)
+                .next()
+                .map(text_content)
+                .filter(|value| !value.is_empty());
+            let time_or_result = row
+                .select(&time_result_selector)
+                .next()
+                .map(text_content)
+                .unwrap_or_default();
+            let action = row
+                .select(&action_selector)
+                .next()
+                .map(text_content)
+                .unwrap_or_default();
+
+            let (start_time, status) =
+                if looks_finished_score(&time_or_result) || action.contains("Efter match") {
+                    (parse_datetime(date, "19:00"), EventStatus::Finished)
+                } else if looks_like_time(&time_or_result) {
+                    let start_time = parse_datetime(date, &time_or_result);
+                    let status = if action.contains("Live") || action.contains("Pågår") {
+                        EventStatus::Live
+                    } else {
+                        infer_status(start_time)
+                    };
+                    (start_time, status)
+                } else {
+                    let start_time = parse_datetime(date, "19:00");
+                    (start_time, infer_status(start_time))
+                };
+
+            events.push(build_event(
+                home, away, start_time, venue, None, status, season,
+            ));
+        }
     }
 
     events
@@ -248,6 +322,43 @@ fn slugify(value: &str) -> String {
         .filter(|part| !part.is_empty())
         .collect::<Vec<_>>()
         .join("_")
+}
+
+fn text_content(element: scraper::ElementRef<'_>) -> String {
+    element
+        .text()
+        .collect::<Vec<_>>()
+        .join(" ")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ")
+}
+
+fn split_matchup(value: &str) -> Option<(String, String)> {
+    let (home, away) = value.split_once('–').or_else(|| value.split_once('-'))?;
+    Some((home.trim().to_string(), away.trim().to_string()))
+}
+
+fn looks_like_time(value: &str) -> bool {
+    Regex::new(r"^\d{1,2}:\d{2}$")
+        .unwrap()
+        .is_match(value.trim())
+}
+
+fn looks_finished_score(value: &str) -> bool {
+    let mut parts = value.split('-').map(str::trim);
+    matches!(
+        (parts.next(), parts.next(), parts.next()),
+        (Some(left), Some(right), None) if left.parse::<u8>().is_ok() && right.parse::<u8>().is_ok()
+    )
+}
+
+fn parse_swedish_date_label(value: &str, season: i32) -> Option<Date> {
+    let re = Regex::new(r"(?i)^[a-zåäö]+\s+(?P<day>\d{1,2})\s+(?P<month>[a-zåäö]+)$").unwrap();
+    let caps = re.captures(value.trim())?;
+    let day = caps.name("day")?.as_str().parse::<u8>().ok()?;
+    let month = parse_month(&caps.name("month")?.as_str().to_ascii_uppercase())?;
+    Date::from_calendar_date(season_year(season, month), month, day).ok()
 }
 
 #[cfg(test)]

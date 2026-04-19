@@ -170,9 +170,9 @@ sources:
     competition: sdhl
     kind: event
     parser: sdhl
-    url: https://www.sdhl.se/api/sports-v2/game-schedule
+    url: https://www.sdhl.se/game-schedule
     fixture_path: tests/fixtures/sdhl_game_schedule.json
-    fetch_mode: http
+    fetch_mode: browser
     season: 2026
   - name: ndhl_schedule
     competition: ndhl
