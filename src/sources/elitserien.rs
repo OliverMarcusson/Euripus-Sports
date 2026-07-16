@@ -1,27 +1,32 @@
 use scraper::{Html, Selector};
-use time::{macros::offset, Date, Month, OffsetDateTime, PrimitiveDateTime, UtcOffset};
+use time::{Date, Month, OffsetDateTime};
 
 use crate::domain::{EventSeed, EventStatus, Participants};
 
-const STOCKHOLM: UtcOffset = offset!(+2);
 const SOURCE_URL: &str = "https://elitserien.se/spelprogram/";
 
-pub fn parse_schedule_document(input: &str, season: i32) -> Vec<EventSeed> {
-    parse_schedule_document_for_competition(
+pub fn parse_schedule_document_at(
+    input: &str,
+    season: i32,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
+    parse_schedule_document_for_competition_at(
         input,
         season,
         "bandy_elitserien",
         "tr.men-team",
         "elitserien-schedule",
+        observed_at,
     )
 }
 
-pub fn parse_schedule_document_for_competition(
+pub fn parse_schedule_document_for_competition_at(
     input: &str,
     season: i32,
     competition: &str,
     row_selector: &str,
     source_name: &str,
+    observed_at: OffsetDateTime,
 ) -> Vec<EventSeed> {
     let document = Html::parse_document(input);
     let row_selector = Selector::parse(row_selector).unwrap();
@@ -54,11 +59,13 @@ pub fn parse_schedule_document_for_competition(
             continue;
         }
 
-        let start_time = parse_datetime(date, time);
+        let Some(start_time) = parse_datetime(date, time) else {
+            continue;
+        };
         let status = if looks_finished_score(&result) {
             EventStatus::Finished
         } else {
-            infer_status(start_time)
+            infer_status(start_time, observed_at)
         };
 
         events.push(EventSeed {
@@ -117,13 +124,8 @@ fn parse_date_time(value: &str) -> Option<(Date, &str)> {
     ))
 }
 
-fn parse_datetime(date: Date, value: &str) -> OffsetDateTime {
-    let (hour, minute) = value.split_once(':').unwrap();
-    PrimitiveDateTime::new(
-        date,
-        time::Time::from_hms(hour.parse().unwrap(), minute.parse().unwrap(), 0).unwrap(),
-    )
-    .assume_offset(STOCKHOLM)
+fn parse_datetime(date: Date, value: &str) -> Option<OffsetDateTime> {
+    super::parse_clock_in_timezone(date, value, time_tz::timezones::db::europe::STOCKHOLM)
 }
 
 fn looks_finished_score(value: &str) -> bool {
@@ -134,15 +136,12 @@ fn looks_finished_score(value: &str) -> bool {
     )
 }
 
-fn infer_status(start_time: OffsetDateTime) -> EventStatus {
-    let now = OffsetDateTime::now_utc();
-    if now < start_time {
-        EventStatus::Upcoming
-    } else if now <= start_time + time::Duration::hours(2) {
-        EventStatus::Live
-    } else {
-        EventStatus::Finished
-    }
+fn infer_status(start_time: OffsetDateTime, observed_at: OffsetDateTime) -> EventStatus {
+    crate::time_utils::infer_status_at(
+        observed_at,
+        start_time,
+        start_time + time::Duration::hours(2),
+    )
 }
 
 fn slugify(value: &str) -> String {
@@ -164,7 +163,8 @@ mod tests {
     #[test]
     fn parses_elitserien_schedule_table() {
         let input = include_str!("../../tests/fixtures/elitserien_spelprogram.html");
-        let events = parse_schedule_document(input, 2026);
+        let events =
+            parse_schedule_document_at(input, 2026, time::macros::datetime!(2026-01-01 00:00 UTC));
         assert_eq!(events.len(), 4);
         assert!(events.iter().any(|event| {
             event.title == "Villa-Lidköping BK vs Västerås SK"
@@ -179,14 +179,19 @@ mod tests {
     #[test]
     fn parses_elitserien_dam_schedule_table() {
         let input = include_str!("../../tests/fixtures/elitserien_dam_spelprogram.html");
-        let events = parse_schedule_document_for_competition(
+        let events = parse_schedule_document_for_competition_at(
             input,
             2026,
             "bandy_elitserien_dam",
             "tr.women-team",
             "elitserien-dam-schedule",
+            time::macros::datetime!(2026-02-01 00:00 UTC),
         );
         assert_eq!(events.len(), 2);
+        assert_eq!(
+            events[0].start_time.to_offset(time::UtcOffset::UTC),
+            time::macros::datetime!(2026-02-28 13:00 UTC)
+        );
         assert!(events.iter().any(|event| {
             event.title == "Västerås SK vs Villa-Lidköping BK"
                 && event.competition == "bandy_elitserien_dam"

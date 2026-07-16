@@ -102,6 +102,10 @@ pub fn parse_allsvenskan_markdown(input: &str, config: &AppConfig) -> Vec<WatchO
             confidence: 0.99,
             source: "tv4play-listing".into(),
             source_url: url,
+            airing_start: None,
+            airing_end: None,
+            season: None,
+            round_number: None,
         });
     }
 
@@ -159,6 +163,10 @@ fn parse_hockey_markdown(
             } else {
                 url
             },
+            airing_start: None,
+            airing_end: None,
+            season: None,
+            round_number: None,
         });
     }
 

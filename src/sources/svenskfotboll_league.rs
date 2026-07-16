@@ -2,9 +2,7 @@ use regex::Regex;
 use scraper::{Html, Selector};
 use serde_json::Value;
 use time::{
-    format_description::well_known::Rfc3339,
-    macros::{format_description, offset},
-    Date, OffsetDateTime, PrimitiveDateTime, UtcOffset,
+    format_description::well_known::Rfc3339, macros::format_description, Date, OffsetDateTime,
 };
 
 use crate::{
@@ -14,29 +12,28 @@ use crate::{
 
 const DATE_FORMAT: &[time::format_description::FormatItem<'static>] =
     format_description!("[day] [month repr:long] [year]");
-const STOCKHOLM: UtcOffset = offset!(+2);
 
 #[derive(Debug, Clone, Copy)]
 pub struct LeagueConfig<'a> {
     pub competition: &'a str,
     pub base_url: &'a str,
     pub source_prefix: &'a str,
-    pub article_source_url: Option<&'a str>,
 }
 
-pub fn parse_document(
+pub fn parse_document_at(
     input: &str,
     season: i32,
     config: &AppConfig,
     league: LeagueConfig<'_>,
+    observed_at: OffsetDateTime,
 ) -> Vec<EventSeed> {
     if input.trim_start().starts_with('{') {
-        return parse_graphql_response(input, season, config, league);
+        return parse_graphql_response(input, season, config, league, observed_at);
     }
     if input.contains("<html") || input.contains("<!DOCTYPE html") {
-        return parse_html(input, season, config, league);
+        return parse_html(input, season, config, league, observed_at);
     }
-    parse_markdown(input, season, config, league)
+    parse_markdown(input, season, config, league, observed_at)
 }
 
 pub fn parse_markdown(
@@ -44,6 +41,7 @@ pub fn parse_markdown(
     season: i32,
     config: &AppConfig,
     league: LeagueConfig<'_>,
+    observed_at: OffsetDateTime,
 ) -> Vec<EventSeed> {
     let line_re = Regex::new(&format!(
         r#"^\[(?P<label>.+?)\]\((?P<url>https://{}(/matcher/\d{{4}}/\d+/[^)]+|/matcher/\d{{4}}/\d+/[^)]+))(?:\?live=true)?\)$"#,
@@ -85,10 +83,15 @@ pub fn parse_markdown(
         };
         let home = config.canonical_team_name(league.competition, &home);
         let away = config.canonical_team_name(league.competition, &away);
-        let start_time = time
-            .as_deref()
-            .map(|time| parse_datetime(date, time))
-            .unwrap_or_else(|| OffsetDateTime::now_utc().to_offset(STOCKHOLM));
+        let start_time = match time.as_deref() {
+            Some(value) => {
+                let Some(start_time) = parse_datetime(date, value) else {
+                    continue;
+                };
+                start_time
+            }
+            None => observed_at,
+        };
         let slug = raw_url.rsplit('/').next().unwrap_or("match");
 
         events.push(EventSeed {
@@ -122,88 +125,7 @@ pub fn parse_markdown(
     events
 }
 
-pub fn parse_svenskfotboll_article(
-    input: &str,
-    season: i32,
-    config: &AppConfig,
-    league: LeagueConfig<'_>,
-) -> Vec<EventSeed> {
-    let date_re = Regex::new(r"^\*\*.+?,\s+(?P<day>\d{1,2})\s+(?P<month>[a-zåäö]+)\*\*$").unwrap();
-    let match_re =
-        Regex::new(r"^(?P<time>\d{1,2}\.\d{2})\s+(?P<home>.+?)\s+[–-]\s+(?P<away>.+)$").unwrap();
-    let round_re = Regex::new(r"omgång\s+(?P<round>\d+)").unwrap();
-
-    let mut current_date = None;
-    let mut round_label = round_re
-        .captures(input)
-        .and_then(|caps| caps.name("round"))
-        .map(|m| format!("Round {}", m.as_str()));
-    let mut events = Vec::new();
-
-    for line in input.lines().map(str::trim).filter(|line| !line.is_empty()) {
-        if let Some(caps) = date_re.captures(line) {
-            let day = caps.name("day").and_then(|m| m.as_str().parse::<u8>().ok());
-            let month = caps
-                .name("month")
-                .and_then(|m| parse_swedish_month(m.as_str()));
-            current_date = day.and_then(|day| {
-                month.and_then(|month| Date::from_calendar_date(season, month, day).ok())
-            });
-            continue;
-        }
-
-        if round_label.is_none() {
-            round_label = round_re
-                .captures(line)
-                .and_then(|caps| caps.name("round"))
-                .map(|m| format!("Round {}", m.as_str()));
-        }
-
-        let Some(caps) = match_re.captures(line) else {
-            continue;
-        };
-        let Some(date) = current_date else { continue };
-        let time = caps.name("time").unwrap().as_str().replace('.', ":");
-        let home = config.canonical_team_name(
-            league.competition,
-            caps.name("home").unwrap().as_str().trim(),
-        );
-        let away = config.canonical_team_name(
-            league.competition,
-            caps.name("away").unwrap().as_str().trim(),
-        );
-        let start_time = parse_datetime(date, &time);
-
-        events.push(EventSeed {
-            id: format!(
-                "{}_{}_{}_{}",
-                league.competition,
-                season,
-                slugify(&home),
-                slugify(&away)
-            ),
-            sport: "soccer".into(),
-            competition: league.competition.into(),
-            title: format!("{} vs {}", home, away),
-            start_time,
-            end_time: Some(start_time + time::Duration::hours(2)),
-            status: infer_status(start_time),
-            venue: None,
-            round_label: round_label.clone(),
-            participants: Participants { home, away },
-            source: format!("svenskfotboll-{}-fixture", league.source_prefix),
-            source_url: league.article_source_url.unwrap_or_default().into(),
-        });
-    }
-
-    events
-}
-
-fn extract_date<'a>(
-    label: &'a str,
-    season: i32,
-    fallback: Option<Date>,
-) -> (Option<Date>, &'a str) {
+fn extract_date(label: &str, season: i32, fallback: Option<Date>) -> (Option<Date>, &str) {
     let mut parts = label.splitn(4, ' ');
     let day_word = parts.next().unwrap_or_default();
     if day_word == "Idag" {
@@ -274,6 +196,7 @@ fn parse_html(
     season: i32,
     config: &AppConfig,
     league: LeagueConfig<'_>,
+    observed_at: OffsetDateTime,
 ) -> Vec<EventSeed> {
     let document = Html::parse_document(input);
     let selector = Selector::parse("a").unwrap();
@@ -299,7 +222,7 @@ fn parse_html(
         lines.push(format!("[{normalized}]({absolute})"));
     }
 
-    parse_markdown(&lines.join("\n"), season, config, league)
+    parse_markdown(&lines.join("\n"), season, config, league, observed_at)
 }
 
 fn parse_graphql_response(
@@ -307,6 +230,7 @@ fn parse_graphql_response(
     season: i32,
     config: &AppConfig,
     league: LeagueConfig<'_>,
+    observed_at: OffsetDateTime,
 ) -> Vec<EventSeed> {
     let value: Value = match serde_json::from_str(input) {
         Ok(value) => value,
@@ -326,9 +250,7 @@ fn parse_graphql_response(
             let home = game.get("homeTeamName")?.as_str()?.trim();
             let away = game.get("visitingTeamName")?.as_str()?.trim();
             let start_raw = game.get("startDate")?.as_str()?;
-            let start_time = OffsetDateTime::parse(start_raw, &Rfc3339)
-                .ok()?
-                .to_offset(STOCKHOLM);
+            let start_time = OffsetDateTime::parse(start_raw, &Rfc3339).ok()?;
             let home = config.canonical_team_name(league.competition, home);
             let away = config.canonical_team_name(league.competition, away);
             let fogis_id = game
@@ -352,7 +274,7 @@ fn parse_graphql_response(
                 title: format!("{} vs {}", home, away),
                 start_time,
                 end_time: Some(start_time + time::Duration::hours(2)),
-                status: status_from_graphql(&game, start_time),
+                status: status_from_graphql(&game, start_time, observed_at),
                 venue,
                 round_label: round,
                 participants: Participants { home, away },
@@ -366,63 +288,29 @@ fn parse_graphql_response(
         .collect()
 }
 
-fn status_from_graphql(game: &Value, start_time: OffsetDateTime) -> EventStatus {
+fn status_from_graphql(
+    game: &Value,
+    start_time: OffsetDateTime,
+    observed_at: OffsetDateTime,
+) -> EventStatus {
     match game.get("status").and_then(|value| value.as_str()) {
         Some("PreEvent") => EventStatus::Upcoming,
         Some("PostEvent") | Some("Finished") | Some("FINISHED") => EventStatus::Finished,
         Some("Live") | Some("Ongoing") => EventStatus::Live,
-        _ => infer_status(start_time),
+        _ => infer_status(start_time, observed_at),
     }
 }
 
-fn parse_swedish_month(value: &str) -> Option<time::Month> {
-    match value.to_ascii_lowercase().as_str() {
-        "januari" => Some(time::Month::January),
-        "februari" => Some(time::Month::February),
-        "mars" => Some(time::Month::March),
-        "april" => Some(time::Month::April),
-        "maj" => Some(time::Month::May),
-        "juni" => Some(time::Month::June),
-        "juli" => Some(time::Month::July),
-        "augusti" => Some(time::Month::August),
-        "september" => Some(time::Month::September),
-        "oktober" => Some(time::Month::October),
-        "november" => Some(time::Month::November),
-        "december" => Some(time::Month::December),
-        _ => None,
-    }
+fn parse_datetime(date: Date, value: &str) -> Option<OffsetDateTime> {
+    super::parse_clock_in_timezone(date, value, time_tz::timezones::db::europe::STOCKHOLM)
 }
 
-fn parse_datetime(date: Date, time: &str) -> OffsetDateTime {
-    let (hour, minute) = time.split_once(':').unwrap();
-    PrimitiveDateTime::new(
-        date,
-        time::Time::from_hms(hour.parse().unwrap(), minute.parse().unwrap(), 0).unwrap(),
+fn infer_status(start_time: OffsetDateTime, observed_at: OffsetDateTime) -> EventStatus {
+    crate::time_utils::infer_status_at(
+        observed_at,
+        start_time,
+        start_time + time::Duration::hours(2),
     )
-    .assume_offset(STOCKHOLM)
-}
-
-fn infer_status(start_time: OffsetDateTime) -> EventStatus {
-    let now = OffsetDateTime::now_utc();
-    if now < start_time {
-        EventStatus::Upcoming
-    } else if now <= start_time + time::Duration::hours(2) {
-        EventStatus::Live
-    } else {
-        EventStatus::Finished
-    }
-}
-
-fn slugify(value: &str) -> String {
-    value
-        .to_lowercase()
-        .chars()
-        .map(|ch| if ch.is_alphanumeric() { ch } else { '_' })
-        .collect::<String>()
-        .split('_')
-        .filter(|part| !part.is_empty())
-        .collect::<Vec<_>>()
-        .join("_")
 }
 
 fn title_case(input: &str) -> String {

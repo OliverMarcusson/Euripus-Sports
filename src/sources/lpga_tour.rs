@@ -1,16 +1,19 @@
 use regex::Regex;
 use scraper::{Html, Selector};
-use time::{macros::offset, Date, Month, OffsetDateTime, PrimitiveDateTime, UtcOffset};
+use time::{Date, Month, OffsetDateTime};
 
-use crate::domain::{EventSeed, EventStatus, Participants, WatchOverlay};
+use crate::domain::{EventSeed, Participants, WatchOverlay};
 
-const STOCKHOLM: UtcOffset = offset!(+2);
 const SOURCE_URL: &str = "https://www.lpga.com/tournaments?year=2026";
 const SVENSK_GOLF_URL: &str = "https://www.svenskgolf.se/sidor/har-ar-veckans-livesandningar/";
 
-pub fn parse_schedule_document(input: &str, season: i32) -> Vec<EventSeed> {
+pub fn parse_schedule_document_at(
+    input: &str,
+    season: i32,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     if input.contains("<html") || input.contains("<!DOCTYPE html") {
-        return parse_schedule_html_document(input, season);
+        return parse_schedule_html_document(input, season, observed_at);
     }
 
     let line_re = Regex::new(r"^(?P<name>[^|]+)\|(?P<month>[A-Za-z]+)\s+(?P<start>\d{1,2})-(?P<end>\d{1,2})\|(?P<venue>[^|]+)$").unwrap();
@@ -26,12 +29,17 @@ pub fn parse_schedule_document(input: &str, season: i32) -> Vec<EventSeed> {
                 caps.name("start")?.as_str().parse::<u8>().ok()?,
                 caps.name("venue")?.as_str().trim(),
                 season,
+                observed_at,
             )
         })
         .collect()
 }
 
-fn parse_schedule_html_document(input: &str, season: i32) -> Vec<EventSeed> {
+fn parse_schedule_html_document(
+    input: &str,
+    season: i32,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     let document = Html::parse_document(input);
     let item_selector =
         Selector::parse("article[data-tournament], .tournament-card, li[data-tournament]").unwrap();
@@ -57,14 +65,14 @@ fn parse_schedule_html_document(input: &str, season: i32) -> Vec<EventSeed> {
         let Some((month, day)) = parse_date_label(&date_text) else {
             continue;
         };
-        if let Some(event) = build_event(&name, month, day, &venue, season) {
+        if let Some(event) = build_event(&name, month, day, &venue, season, observed_at) {
             events.push(event);
         }
     }
     events
 }
 
-pub fn parse_svensk_golf_watch_document(input: &str, _season: i32) -> Vec<WatchOverlay> {
+pub fn parse_svensk_golf_watch_document(input: &str, season: i32) -> Vec<WatchOverlay> {
     let line_re =
         Regex::new(r"^(?P<name>.+?)\s+Round\s+(?P<round>\d)\s*[|:-]\s*(?P<label>.+)$").unwrap();
     input
@@ -91,15 +99,29 @@ pub fn parse_svensk_golf_watch_document(input: &str, _season: i32) -> Vec<WatchO
                 confidence: 0.97,
                 source: "svensk-golf-tv-guide".into(),
                 source_url: SVENSK_GOLF_URL.into(),
+                airing_start: None,
+                airing_end: None,
+                season: Some(season),
+                round_number: Some(round),
             })
         })
         .collect()
 }
 
-fn build_event(name: &str, month: Month, day: u8, venue: &str, season: i32) -> Option<EventSeed> {
+fn build_event(
+    name: &str,
+    month: Month,
+    day: u8,
+    venue: &str,
+    season: i32,
+    observed_at: OffsetDateTime,
+) -> Option<EventSeed> {
     let date = Date::from_calendar_date(season, month, day).ok()?;
-    let start_time = PrimitiveDateTime::new(date, time::Time::from_hms(13, 0, 0).unwrap())
-        .assume_offset(STOCKHOLM);
+    let start_time = crate::time_utils::local_datetime(
+        date,
+        "13:00",
+        time_tz::timezones::db::europe::STOCKHOLM,
+    )?;
     Some(EventSeed {
         id: format!("lpga_tour_{}_{}", season, slugify(name)),
         sport: "golf".into(),
@@ -107,7 +129,11 @@ fn build_event(name: &str, month: Month, day: u8, venue: &str, season: i32) -> O
         title: name.to_string(),
         start_time,
         end_time: Some(start_time + time::Duration::days(4)),
-        status: infer_status(start_time),
+        status: crate::time_utils::infer_status_at(
+            observed_at,
+            start_time,
+            start_time + time::Duration::days(4),
+        ),
         venue: if venue.is_empty() {
             None
         } else {
@@ -150,16 +176,6 @@ fn parse_month(value: &str) -> Option<Month> {
         _ => None,
     }
 }
-fn infer_status(start_time: OffsetDateTime) -> EventStatus {
-    let now = OffsetDateTime::now_utc();
-    if now < start_time {
-        EventStatus::Upcoming
-    } else if now <= start_time + time::Duration::days(4) {
-        EventStatus::Live
-    } else {
-        EventStatus::Finished
-    }
-}
 fn slugify(value: &str) -> String {
     value
         .to_lowercase()
@@ -189,7 +205,8 @@ mod tests {
     #[test]
     fn parses_lpga_schedule() {
         let input = include_str!("../../tests/fixtures/lpga_schedule_2026.html");
-        let events = parse_schedule_document(input, 2026);
+        let events =
+            parse_schedule_document_at(input, 2026, time::macros::datetime!(2026-01-01 00:00 UTC));
         assert_eq!(events.len(), 2);
         assert!(events
             .iter()

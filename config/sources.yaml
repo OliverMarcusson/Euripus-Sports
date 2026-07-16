@@ -1,12 +1,4 @@
 sources:
-  - name: pga_schedule
-    competition: pga_tour
-    kind: event
-    parser: pga_tour_schedule
-    url: https://www.pgatour.com/schedule
-    fixture_path: tests/fixtures/pga_schedule_readability.md
-    fetch_mode: auto
-    season: 2026
   - name: pga_broadcast_schedule_events
     competition: pga_tour
     kind: event
@@ -15,6 +7,7 @@ sources:
     fixture_path: tests/fixtures/pga_broadcast_schedule_readability.md
     fetch_mode: auto
     season: 2026
+    priority: 100
   - name: pga_broadcast_schedule_watch
     competition: pga_tour
     kind: watch
@@ -44,6 +37,7 @@ sources:
     season: 2026
   - name: tv4play_allsvenskan
     competition: allsvenskan
+    season: 2026
     kind: watch
     parser: tv4play_allsvenskan
     url: https://www.tv4play.se/kategorier/allsvenskan
@@ -51,6 +45,7 @@ sources:
     fetch_mode: auto
   - name: tv4play_shl
     competition: shl
+    season: 2026
     kind: watch
     parser: tv4play_shl
     url: https://www.tv4play.se/kategorier/shl
@@ -58,6 +53,7 @@ sources:
     fetch_mode: auto
   - name: tv4play_hockeyallsvenskan
     competition: hockeyallsvenskan
+    season: 2026
     kind: watch
     parser: tv4play_hockeyallsvenskan
     url: https://www.tv4play.se/kategorier/hockeyallsvenskan
@@ -81,6 +77,7 @@ sources:
     season: 2026
   - name: viaplay_premier_league_watch
     competition: premier_league
+    season: 2026
     kind: watch
     parser: viaplay_premier_league
     url: https://viaplay.se/sport/fotboll/premier-league
@@ -96,6 +93,7 @@ sources:
     season: 2026
   - name: viaplay_champions_league_watch
     competition: uefa_champions_league
+    season: 2026
     kind: watch
     parser: viaplay_champions_league
     url: https://viaplay.se/sport/fotboll/uefa-champions-league
@@ -182,6 +180,7 @@ sources:
     fixture_path: tests/fixtures/ndhl_schedule.txt
     fetch_mode: fixture
     season: 2026
+    enabled_in_live: false
   - name: elitserien_dam_schedule
     competition: bandy_elitserien_dam
     kind: event

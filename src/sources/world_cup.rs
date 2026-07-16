@@ -1,16 +1,15 @@
 use regex::Regex;
 use scraper::{Html, Selector};
-use time::{macros::offset, Date, Month, OffsetDateTime, PrimitiveDateTime, UtcOffset};
+use time::{Date, Month, OffsetDateTime};
 
-use crate::domain::{EventSeed, EventStatus, Participants};
+use crate::domain::{EventSeed, Participants};
 
-const STOCKHOLM: UtcOffset = offset!(+2);
 const SOURCE_URL: &str =
     "https://www.fifa.com/en/tournaments/mens/worldcup/canadamexicousa2026/scores-fixtures";
 
-pub fn parse_fifa_fixtures(input: &str) -> Vec<EventSeed> {
+pub fn parse_fifa_fixtures_at(input: &str, observed_at: OffsetDateTime) -> Vec<EventSeed> {
     if input.contains("/match-centre/match/") && input.contains("matches-container_title__") {
-        return parse_rendered_html(input);
+        return parse_rendered_html(input, observed_at);
     }
 
     let image_re = Regex::new(r"!\[[^\]]*\]\([^)]*\)").unwrap();
@@ -57,23 +56,25 @@ pub fn parse_fifa_fixtures(input: &str) -> Vec<EventSeed> {
             caps.name("venue").unwrap().as_str().trim(),
             caps.name("city").unwrap().as_str().trim()
         );
-        let start_time = parse_datetime(date, time);
+        let Some(start_time) = parse_datetime(date, time) else {
+            continue;
+        };
 
         events.push(build_event(
-            date,
             home,
             away,
             start_time,
             Some(stage.into()),
             Some(venue),
             SOURCE_URL.into(),
+            observed_at,
         ));
     }
 
     events
 }
 
-fn parse_rendered_html(input: &str) -> Vec<EventSeed> {
+fn parse_rendered_html(input: &str, observed_at: OffsetDateTime) -> Vec<EventSeed> {
     let document = Html::parse_document(input);
     let block_selector = Selector::parse("div[class*='ff-text-blue-dark']").unwrap();
     let title_selector = Selector::parse("div[class*='matches-container_title__']").unwrap();
@@ -110,7 +111,9 @@ fn parse_rendered_html(input: &str) -> Vec<EventSeed> {
             if !time.contains(':') {
                 continue;
             }
-            let start_time = parse_datetime(date, time.trim());
+            let Some(start_time) = parse_datetime(date, time.trim()) else {
+                continue;
+            };
             let labels = game
                 .select(&bottom_label_selector)
                 .map(text_content)
@@ -139,7 +142,13 @@ fn parse_rendered_html(input: &str) -> Vec<EventSeed> {
             };
 
             events.push(build_event(
-                date, home, away, start_time, stage, venue, source_url,
+                home,
+                away,
+                start_time,
+                stage,
+                venue,
+                source_url,
+                observed_at,
             ));
         }
     }
@@ -159,14 +168,15 @@ fn parse_rendered_date(input: &str) -> Option<Date> {
 }
 
 fn build_event(
-    date: Date,
     home: &str,
     away: &str,
     start_time: OffsetDateTime,
     round_label: Option<String>,
     venue: Option<String>,
     source_url: String,
+    observed_at: OffsetDateTime,
 ) -> EventSeed {
+    let date = start_time.date();
     EventSeed {
         id: format!(
             "fifa_world_cup_2026_{:02}_{:02}_{}_{}",
@@ -180,7 +190,11 @@ fn build_event(
         title: format!("{} vs {}", home, away),
         start_time,
         end_time: Some(start_time + time::Duration::hours(2)),
-        status: infer_status(start_time),
+        status: crate::time_utils::infer_status_at(
+            observed_at,
+            start_time,
+            start_time + time::Duration::hours(2),
+        ),
         venue,
         round_label,
         participants: Participants {
@@ -234,13 +248,8 @@ fn parse_month(value: &str) -> Option<Month> {
     }
 }
 
-fn parse_datetime(date: Date, value: &str) -> OffsetDateTime {
-    let (hour, minute) = value.split_once(':').unwrap();
-    PrimitiveDateTime::new(
-        date,
-        time::Time::from_hms(hour.parse().unwrap(), minute.parse().unwrap(), 0).unwrap(),
-    )
-    .assume_offset(STOCKHOLM)
+fn parse_datetime(date: Date, value: &str) -> Option<OffsetDateTime> {
+    super::parse_clock_in_timezone(date, value, time_tz::timezones::db::europe::STOCKHOLM)
 }
 
 fn slugify(value: &str) -> String {
@@ -255,17 +264,6 @@ fn slugify(value: &str) -> String {
         .join("_")
 }
 
-fn infer_status(start_time: OffsetDateTime) -> EventStatus {
-    let now = OffsetDateTime::now_utc();
-    if now < start_time {
-        EventStatus::Upcoming
-    } else if now <= start_time + time::Duration::hours(2) {
-        EventStatus::Live
-    } else {
-        EventStatus::Finished
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -273,7 +271,7 @@ mod tests {
     #[test]
     fn parses_fifa_world_cup_fixtures() {
         let input = include_str!("../../tests/fixtures/fifa_world_cup_fifa_fixtures.md");
-        let events = parse_fifa_fixtures(input);
+        let events = parse_fifa_fixtures_at(input, time::macros::datetime!(2026-01-01 00:00 UTC));
         assert_eq!(events.len(), 17);
         assert!(events.iter().any(|event| {
             event.title == "Sweden vs Tunisia"
@@ -285,7 +283,7 @@ mod tests {
     #[test]
     fn parses_rendered_world_cup_html() {
         let input = r#"<html><body><div class="col-xl-12 col-lg-12 ff-pb-24 ff-text-blue-dark col-md-12 col-sm-12"><div class="matches-container_header__yYA5H"><div class="matches-container_title__ATLsl">Monday 15 June 2026</div></div><div class="row"><a href="/en/match-centre/match/17/285023/289273/400021474"><div class="match-row_matchRowContainer__NoCRI"><div class="match-row_matchRowBody__yc8mV"><div class="match-row_team__y5Rva justify-content-end"><span class="d-none d-md-block">Sweden</span></div><div class="match-row_matchRowStatus__AJE7s"><span class="match-row_matchTime__9QJXJ">04:00</span></div><div class="match-row_team__y5Rva"><span class="d-none d-md-block">Tunisia</span></div></div><div class="match-row_bottomLabelWrapper__9iAmu"><span class="match-row_bottomLabel__ni63b justify-content-end">First Stage</span><span class="match-row_bottomLabel__ni63b">Group F</span><div class="match-row_stadiumCityLabels__zjXUq"><span>Monterrey Stadium</span><span>(Monterrey)</span></div></div></div></a></div></div></body></html>"#;
-        let events = parse_fifa_fixtures(input);
+        let events = parse_fifa_fixtures_at(input, time::macros::datetime!(2026-01-01 00:00 UTC));
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].title, "Sweden vs Tunisia");
         assert_eq!(

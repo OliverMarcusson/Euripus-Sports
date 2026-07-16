@@ -3,6 +3,7 @@ use std::cmp::Reverse;
 use crate::{config::AppConfig, domain::*};
 
 const MARKET_WEIGHT: &[(&str, i32)] = &[("se", 300), ("us", 200), ("uk", 100)];
+const OVERLAY_TOLERANCE: time::Duration = time::Duration::minutes(90);
 
 pub fn hydrate_event(seed: &EventSeed, config: &AppConfig) -> Event {
     let availabilities = build_availabilities(seed, config);
@@ -295,32 +296,47 @@ fn overlay_matches_event(overlay: &WatchOverlay, seed: &EventSeed) -> bool {
     let participant_match = overlay.competition == seed.competition
         && normalize_name(&overlay.participants.home) == normalize_name(&seed.participants.home)
         && normalize_name(&overlay.participants.away) == normalize_name(&seed.participants.away);
-
     if !participant_match {
         return false;
     }
 
-    if seed.sport == "golf" {
-        return normalize_name(&overlay.title) == normalize_name(&seed.title)
-            || overlay
-                .channel_name
-                .as_ref()
-                .map(|name| normalize_name(name) == normalize_name(&seed.title))
-                .unwrap_or(false)
-            || overlay
-                .title
-                .contains(seed.round_label.as_deref().unwrap_or_default());
+    if seed.competition == "lpga_tour" {
+        let Some(round) = overlay.round_number.filter(|round| (1..=4).contains(round)) else {
+            return false;
+        };
+        let stockholm = time_tz::timezones::db::europe::STOCKHOLM;
+        use time_tz::OffsetDateTimeExt;
+        if overlay.season != Some(seed.start_time.to_timezone(stockholm).year()) {
+            return false;
+        }
+        let round_time = seed.start_time + time::Duration::days(i64::from(round - 1));
+        return seed.end_time.is_some_and(|end| round_time < end);
     }
 
-    true
+    if seed.competition == "pga_tour" {
+        let event_round = seed
+            .round_label
+            .as_deref()
+            .and_then(|label| label.strip_prefix("Round "))
+            .and_then(|round| round.parse::<u8>().ok());
+        if overlay.round_number != event_round {
+            return false;
+        }
+    }
+
+    let Some(airing_start) = overlay.airing_start else {
+        return false;
+    };
+    let airing_end = overlay.airing_end.unwrap_or(airing_start);
+    let event_end = seed.end_time.unwrap_or(seed.start_time);
+    airing_start < event_end + OVERLAY_TOLERANCE && airing_end > seed.start_time - OVERLAY_TOLERANCE
 }
 
 fn normalize_name(value: &str) -> String {
     value
         .to_lowercase()
         .replace("if", "")
-        .replace('å', "a")
-        .replace('ä', "a")
+        .replace(['å', 'ä'], "a")
         .replace('ö', "o")
         .chars()
         .filter(|ch| ch.is_alphanumeric())
@@ -433,5 +449,114 @@ mod tests {
             .any(|availability| availability.market == "uk"
                 && availability.provider_family == "channel4"
                 && availability.channel_name.as_deref() == Some("Channel 4")));
+    }
+
+    #[test]
+    fn fixture_repeated_pairings_attach_only_to_their_event() {
+        use time::macros::datetime;
+        let config = config();
+        let listing = include_str!("../tests/fixtures/tv4_shl_readability.md");
+        let mut overlays = crate::sources::tv4play::parse_shl_document(listing, &config);
+        crate::sources::listing_time::enrich_tv4(
+            &mut overlays,
+            listing,
+            datetime!(2026-04-17 10:00 UTC),
+            2026,
+        );
+        let schedule = include_str!("../tests/fixtures/shl_game_schedule.md");
+        let events = crate::sources::shl::parse_schedule_document_at(
+            schedule,
+            2026,
+            datetime!(2026-04-17 10:00 UTC),
+        );
+        let repeated_overlays = overlays
+            .iter()
+            .filter(|overlay| overlay.title == "Skellefteå AIK - Rögle BK")
+            .collect::<Vec<_>>();
+        let repeated_events = events
+            .iter()
+            .filter(|event| {
+                event.participants.home == "Skellefteå AIK" && event.participants.away == "Rögle BK"
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(repeated_overlays.len(), 2);
+        assert_eq!(repeated_events.len(), 2);
+        assert!(overlay_matches_event(
+            repeated_overlays[0],
+            repeated_events[0]
+        ));
+        assert!(!overlay_matches_event(
+            repeated_overlays[0],
+            repeated_events[1]
+        ));
+        assert!(!overlay_matches_event(
+            repeated_overlays[1],
+            repeated_events[0]
+        ));
+        assert!(overlay_matches_event(
+            repeated_overlays[1],
+            repeated_events[1]
+        ));
+    }
+
+    #[test]
+    fn overlay_requires_temporal_overlap_for_repeated_pairing() {
+        use time::macros::datetime;
+        let mut config = config();
+        config.watch_overlays = vec![WatchOverlay {
+            competition: "shl".into(),
+            market: "se".into(),
+            provider_family: "tv4".into(),
+            provider_label: "TV4 Play".into(),
+            title: "Skellefteå AIK - Rögle BK".into(),
+            participants: Participants {
+                home: "Skellefteå AIK".into(),
+                away: "Rögle BK".into(),
+            },
+            channel_name: Some("event listing".into()),
+            watch_type: "ppv-event".into(),
+            confidence: 0.99,
+            source: "tv4play-listing".into(),
+            source_url: "https://example.test".into(),
+            airing_start: Some(datetime!(2026-04-25 12:30 UTC)),
+            airing_end: Some(datetime!(2026-04-25 15:30 UTC)),
+            season: Some(2026),
+            round_number: None,
+        }];
+        let make_seed = |id: &str, start| EventSeed {
+            id: id.into(),
+            sport: "hockey".into(),
+            competition: "shl".into(),
+            title: "Skellefteå AIK vs Rögle BK".into(),
+            start_time: start,
+            end_time: Some(start + time::Duration::hours(3)),
+            status: EventStatus::Upcoming,
+            venue: None,
+            round_label: None,
+            participants: Participants {
+                home: "Skellefteå AIK".into(),
+                away: "Rögle BK".into(),
+            },
+            source: "test".into(),
+            source_url: "https://example.test".into(),
+        };
+        let matching = hydrate_event(
+            &make_seed("matching", datetime!(2026-04-25 12:30 UTC)),
+            &config,
+        );
+        let other = hydrate_event(
+            &make_seed("other", datetime!(2026-04-18 12:30 UTC)),
+            &config,
+        );
+        assert!(matching
+            .watch
+            .availabilities
+            .iter()
+            .any(|availability| availability.source == "tv4play-listing"));
+        assert!(!other
+            .watch
+            .availabilities
+            .iter()
+            .any(|availability| availability.source == "tv4play-listing"));
     }
 }

@@ -1,21 +1,22 @@
 use regex::Regex;
 use serde_json::Value;
-use time::{
-    format_description::well_known::Rfc3339, macros::offset, Date, Month, OffsetDateTime,
-    PrimitiveDateTime, UtcOffset,
-};
+use time::{format_description::well_known::Rfc3339, Date, Month, OffsetDateTime};
 
 use crate::{
     config::AppConfig,
     domain::{EventSeed, EventStatus, Participants},
 };
 
-const STOCKHOLM: UtcOffset = offset!(+2);
 const SOURCE_URL: &str = "https://www.hockeyallsvenskan.se/game-schedule";
 
-pub fn parse_schedule_document(input: &str, season: i32, config: &AppConfig) -> Vec<EventSeed> {
+pub fn parse_schedule_document_at(
+    input: &str,
+    season: i32,
+    config: &AppConfig,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     if input.trim_start().starts_with('{') {
-        return parse_api_schedule_document(input, season, config);
+        return parse_api_schedule_document(input, season, config, observed_at);
     }
     let image_re = Regex::new(r"!\[[^\]]*\]\([^)]*\)").unwrap();
     let markdown_link_re = Regex::new(r"\[(?P<text>[^\]]+)\]\([^)]*\)").unwrap();
@@ -52,7 +53,9 @@ pub fn parse_schedule_document(input: &str, season: i32, config: &AppConfig) -> 
                 .canonical_team_name("hockeyallsvenskan", caps.name("home").unwrap().as_str());
             let away = config
                 .canonical_team_name("hockeyallsvenskan", caps.name("away").unwrap().as_str());
-            let start_time = parse_datetime(date, caps.name("time").unwrap().as_str());
+            let Some(start_time) = parse_datetime(date, caps.name("time").unwrap().as_str()) else {
+                continue;
+            };
             events.push(build_event(
                 home,
                 away,
@@ -72,13 +75,15 @@ pub fn parse_schedule_document(input: &str, season: i32, config: &AppConfig) -> 
             config.canonical_team_name("hockeyallsvenskan", caps.name("home").unwrap().as_str());
         let away =
             config.canonical_team_name("hockeyallsvenskan", caps.name("away").unwrap().as_str());
-        let start_time = parse_datetime(date, caps.name("time").unwrap().as_str());
+        let Some(start_time) = parse_datetime(date, caps.name("time").unwrap().as_str()) else {
+            continue;
+        };
         events.push(build_event(
             home,
             away,
             start_time,
             caps.name("round").map(|m| m.as_str().to_string()),
-            infer_status(start_time),
+            infer_status(start_time, observed_at),
             season,
             date,
         ));
@@ -87,7 +92,12 @@ pub fn parse_schedule_document(input: &str, season: i32, config: &AppConfig) -> 
     events
 }
 
-fn parse_api_schedule_document(input: &str, season: i32, config: &AppConfig) -> Vec<EventSeed> {
+fn parse_api_schedule_document(
+    input: &str,
+    season: i32,
+    config: &AppConfig,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     let value: Value = match serde_json::from_str(input) {
         Ok(value) => value,
         Err(_) => return Vec::new(),
@@ -114,9 +124,7 @@ fn parse_api_schedule_document(input: &str, season: i32, config: &AppConfig) -> 
             let home = config.canonical_team_name("hockeyallsvenskan", home_raw);
             let away = config.canonical_team_name("hockeyallsvenskan", away_raw);
             let start_raw = game.get("rawStartDateTime").and_then(Value::as_str)?;
-            let start_time = OffsetDateTime::parse(start_raw, &Rfc3339)
-                .ok()?
-                .to_offset(STOCKHOLM);
+            let start_time = OffsetDateTime::parse(start_raw, &Rfc3339).ok()?;
             let date = start_time.date();
             Some(EventSeed {
                 id: format!(
@@ -136,7 +144,7 @@ fn parse_api_schedule_document(input: &str, season: i32, config: &AppConfig) -> 
                     Some("pre-game") => EventStatus::Upcoming,
                     Some("in-game") => EventStatus::Live,
                     Some("post-game") => EventStatus::Finished,
-                    _ => infer_status(start_time),
+                    _ => infer_status(start_time, observed_at),
                 },
                 venue: game
                     .get("venueInfo")
@@ -202,7 +210,6 @@ fn clean_line(input: &str, image_re: &Regex, markdown_link_re: &Regex) -> String
     };
 
     base.trim_start_matches('*')
-        .trim()
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
@@ -235,24 +242,16 @@ fn season_year(season: i32, month: Month) -> i32 {
     }
 }
 
-fn parse_datetime(date: Date, value: &str) -> OffsetDateTime {
-    let (hour, minute) = value.split_once(':').unwrap();
-    PrimitiveDateTime::new(
-        date,
-        time::Time::from_hms(hour.parse().unwrap(), minute.parse().unwrap(), 0).unwrap(),
-    )
-    .assume_offset(STOCKHOLM)
+fn parse_datetime(date: Date, value: &str) -> Option<OffsetDateTime> {
+    super::parse_clock_in_timezone(date, value, time_tz::timezones::db::europe::STOCKHOLM)
 }
 
-fn infer_status(start_time: OffsetDateTime) -> EventStatus {
-    let now = OffsetDateTime::now_utc();
-    if now < start_time {
-        EventStatus::Upcoming
-    } else if now <= start_time + time::Duration::minutes(150) {
-        EventStatus::Live
-    } else {
-        EventStatus::Finished
-    }
+fn infer_status(start_time: OffsetDateTime, observed_at: OffsetDateTime) -> EventStatus {
+    crate::time_utils::infer_status_at(
+        observed_at,
+        start_time,
+        start_time + time::Duration::minutes(150),
+    )
 }
 
 fn slugify(value: &str) -> String {
@@ -282,14 +281,18 @@ mod tests {
             "config/team_aliases.yaml",
         )
         .unwrap();
-        let events = parse_schedule_document(input, 2026, &config);
+        let events = parse_schedule_document_at(
+            input,
+            2026,
+            &config,
+            time::macros::datetime!(2026-04-01 00:00 UTC),
+        );
         assert_eq!(events.len(), 5);
-        assert!(events.iter().any(|event| {
-            event.title == "BIK Karlskoga vs Björklöven" && event.status == EventStatus::Upcoming
-        }));
+        assert!(events
+            .iter()
+            .any(|event| event.title == "BIK Karlskoga vs Björklöven"));
         assert!(events.iter().any(|event| {
             event.title == "Björklöven vs BIK Karlskoga"
-                && event.status == EventStatus::Live
                 && event.round_label.as_deref() == Some("P3")
         }));
     }

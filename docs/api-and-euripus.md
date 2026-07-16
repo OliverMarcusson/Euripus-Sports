@@ -183,7 +183,9 @@ Using built-in periodic refresh every 10 minutes:
 cargo run -- --source-fetch-mode auto --refresh-interval 10m --browser-command chromium
 ```
 
-`--refresh-interval` enables an in-process background refresh loop. The server still refreshes once on startup, then continues refreshing on the configured interval.
+`--refresh-interval` enables an in-process background refresh worker. The listener starts after fast database initialization; an immediate refresh then runs in the background, followed by interval refreshes. This keeps liveness available while serving the last known snapshot. A first boot remains unready until a refresh publishes successfully.
+
+Direct execution listens on `127.0.0.1:3000` by default. Container commands explicitly use `0.0.0.0:3000` internally while publishing only on host loopback. Browser CORS is opt-in with repeatable exact `--cors-origin <ORIGIN>` options. CORS does not provide authentication; public access requires a reverse proxy with authentication, rate limiting, and concurrency controls.
 
 ## 4.2 Run a refresh without starting the server
 
@@ -230,9 +232,9 @@ http://127.0.0.1:3000
 
 ## 5.1 Health
 
-### `GET /health`
+### `GET /health` and `GET /health/live`
 
-Returns service liveness.
+Return process liveness. `/health` remains a compatibility alias.
 
 Example response:
 
@@ -241,6 +243,10 @@ Example response:
   "status": "ok"
 }
 ```
+
+### `GET /health/ready`
+
+Returns `200` only when SQLite is usable and a successful refresh is no older than `--readiness-max-refresh-age` (default `30m`); otherwise it returns `503`. The JSON includes `status`, `latest_refresh_status`, `last_success_at`, and `age_seconds` without exposing upstream error text. A later failed refresh can report degraded metadata while a still-fresh prior successful snapshot remains ready.
 
 ## 5.2 Live events
 
@@ -264,7 +270,9 @@ Response shape:
 Returns events starting between now and `now + hours`.
 
 Query params:
-- `hours` optional, default `72`
+- `hours` optional, default `72`, accepted range `1..=8760`
+
+Values outside the range return HTTP `400` with `{"error":"invalid_hours","min":1,"max":8760}`.
 
 Example:
 
@@ -276,8 +284,8 @@ curl 'http://127.0.0.1:3000/v1/events/upcoming?hours=168'
 
 ### `GET /v1/events/today`
 
-Currently implemented as a **rolling next 24 hours** view.
-It is not a strict local-calendar-day endpoint.
+Returns events overlapping the current calendar day in `Europe/Stockholm`.
+The interval is half-open from local midnight through the next local midnight, so it follows DST and includes events that started earlier or span midnight.
 
 ## 5.5 Event detail
 
@@ -563,7 +571,8 @@ Recommended Euripus behavior:
 ## 7.7 Caching in Euripus
 
 Suggested cache policy:
-- `/health`: 30s to 60s
+- `/health/live`: 30s to 60s
+- `/health/ready`: do not cache for deployment health decisions
 - `/v1/events/live`: 1 to 5 minutes
 - `/v1/events/today`: 5 minutes
 - `/v1/events/upcoming`: 15 to 30 minutes
@@ -685,7 +694,6 @@ This should eventually back an admin endpoint, but today it already exists in SQ
 
 - Exact playback mapping is not implemented yet
 - Some competitions are still only partially implemented at the watch-source layer, especially Bandy Elitserien where canonical fixtures exist but event-specific Bonnier watch overlays are not emitted yet
-- `/v1/events/today` is a rolling 24-hour view, not a strict local-date calendar view
 - Some source pages may require browser fallback in production
 - Superettan is currently reliable through a fallback source, not the ideal official matcher page
 - OpenAPI documentation is not generated yet

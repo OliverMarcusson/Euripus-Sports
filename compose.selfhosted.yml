@@ -1,6 +1,6 @@
 services:
   sports-api:
-    image: ${SPORTS_API_IMAGE:-ghcr.io/olivermarcusson/euripus-sports-api}:${SPORTS_API_IMAGE_TAG:-selfhosted-latest}
+    image: ${SPORTS_API_IMAGE_REF:?set an immutable GHCR digest or full git-SHA tag}
     container_name: sports-api
     ports:
       - "127.0.0.1:${SPORTS_API_PORT:-3000}:3000"
@@ -16,8 +16,27 @@ services:
       - ${SPORTS_API_BROWSER_COMMAND:-chromium}
       - --refresh-interval
       - ${SPORTS_API_REFRESH_INTERVAL:-10m}
+      - --readiness-max-refresh-age
+      - ${SPORTS_API_READINESS_MAX_REFRESH_AGE:-30m}
+    user: "10001:10001"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    pids_limit: 256
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+      - /dev/shm:size=256m,mode=1777
     volumes:
       - sports_api_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "--silent", "--show-error", "http://127.0.0.1:3000/health/ready"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 2m
     restart: unless-stopped
 
 volumes:

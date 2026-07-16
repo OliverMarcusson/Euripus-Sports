@@ -2,3 +2,4 @@
 *.db
 /data/
 .env.selfhosted-images
+.pi-subagents/

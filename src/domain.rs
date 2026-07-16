@@ -63,6 +63,12 @@ pub struct WatchOverlay {
     pub confidence: f32,
     pub source: String,
     pub source_url: String,
+    #[serde(with = "time::serde::rfc3339::option")]
+    pub airing_start: Option<OffsetDateTime>,
+    #[serde(with = "time::serde::rfc3339::option")]
+    pub airing_end: Option<OffsetDateTime>,
+    pub season: Option<i32>,
+    pub round_number: Option<u8>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,6 +108,13 @@ pub struct Event {
     pub source_url: String,
     pub watch: EventWatch,
     pub search_metadata: SearchMetadata,
+}
+
+impl Event {
+    pub fn apply_effective_status(&mut self, now: OffsetDateTime) {
+        self.status =
+            crate::time_utils::effective_status(&self.status, self.start_time, self.end_time, now);
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -2,37 +2,15 @@ use std::collections::{BTreeMap, HashMap};
 
 use regex::Regex;
 use scraper::{Html, Selector};
-use serde_json::Value;
-use time::{macros::offset, Date, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
+use time::{Date, Month, OffsetDateTime, Time};
 
-use crate::domain::{EventSeed, EventStatus, Participants, WatchOverlay};
+use crate::domain::{EventSeed, Participants, WatchOverlay};
 
-const EASTERN: UtcOffset = offset!(-4);
-const STOCKHOLM: UtcOffset = offset!(+2);
-
-pub fn parse_schedule_document(input: &str, season: i32) -> Vec<EventSeed> {
-    if input.contains("__NEXT_DATA__") {
-        return parse_schedule_html_document(input, season);
-    }
-
-    let tournament_re = Regex::new(r"###\s+(.+?)Right Arrow").unwrap();
-    let round_re = Regex::new(r"\bR(?P<round>\d)\b").unwrap();
-
-    let tournament = tournament_re
-        .captures(input)
-        .and_then(|caps| caps.get(1))
-        .map(|m| m.as_str().trim().to_string());
-    let round = round_re
-        .captures(input)
-        .and_then(|caps| caps.name("round"))
-        .and_then(|m| m.as_str().parse::<u8>().ok());
-
-    build_current_round_event(tournament, round, season)
-        .into_iter()
-        .collect()
-}
-
-pub fn parse_broadcast_events_document(input: &str, season: i32) -> Vec<EventSeed> {
+pub fn parse_broadcast_events_document_at(
+    input: &str,
+    season: i32,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     let entries = parse_broadcast_entries(input, season);
     let mut grouped: BTreeMap<(String, u8), Vec<BroadcastEntry>> = BTreeMap::new();
     for entry in entries {
@@ -57,9 +35,13 @@ pub fn parse_broadcast_events_document(input: &str, season: i32) -> Vec<EventSee
                 sport: "golf".into(),
                 competition: "pga_tour".into(),
                 title: format!("{} Round {}", first.tournament, first.round),
-                start_time: first.start_time.to_offset(STOCKHOLM),
-                end_time: Some(last.end_time.to_offset(STOCKHOLM)),
-                status: infer_status(first.start_time, last.end_time),
+                start_time: first.start_time,
+                end_time: Some(last.end_time),
+                status: crate::time_utils::infer_status_at(
+                    observed_at,
+                    first.start_time,
+                    last.end_time,
+                ),
                 venue: None,
                 round_label: Some(format!("Round {}", first.round)),
                 participants: Participants {
@@ -102,14 +84,22 @@ pub fn parse_broadcast_watch_document(input: &str, season: i32) -> Vec<WatchOver
                 confidence: 0.99,
                 source: "pga-tour-broadcast".into(),
                 source_url: "https://pgatourmedia.pgatourhq.com/broadcast-schedule".into(),
+                airing_start: Some(entry.start_time),
+                airing_end: Some(entry.end_time),
+                season: Some(season),
+                round_number: Some(entry.round),
             })
         })
         .collect()
 }
 
-pub fn parse_svensk_golf_watch_document(input: &str, season: i32) -> Vec<WatchOverlay> {
+pub fn parse_svensk_golf_watch_document_at(
+    input: &str,
+    season: i32,
+    observed_at: OffsetDateTime,
+) -> Vec<WatchOverlay> {
     if input.contains("<html") || input.contains("<!DOCTYPE html") {
-        return parse_svensk_golf_watch_html(input, season);
+        return parse_svensk_golf_watch_html(input, season, observed_at);
     }
 
     let tournament_re =
@@ -138,11 +128,11 @@ pub fn parse_svensk_golf_watch_document(input: &str, season: i32) -> Vec<WatchOv
         .unwrap_or_else(|| "PGA Tour".to_string());
 
     let mut overlays = Vec::new();
-    let mut current_day: Option<(u8, u8)> = None;
+    let mut current_day: Option<(Date, u8)> = None;
 
     for line in input.lines().map(str::trim).filter(|line| !line.is_empty()) {
         if let Some(caps) = day_re.captures(line) {
-            let day = caps.name("day").and_then(|m| m.as_str().parse::<u8>().ok());
+            let date = crate::sources::listing_time::resolve_date(line, observed_at, season);
             let round = caps.name("label").and_then(|m| match m.as_str() {
                 "torsdag" => Some(1),
                 "fredag" => Some(2),
@@ -150,103 +140,31 @@ pub fn parse_svensk_golf_watch_document(input: &str, season: i32) -> Vec<WatchOv
                 "söndag" => Some(4),
                 _ => None,
             });
-            current_day = day.zip(round);
+            current_day = date.zip(round);
             continue;
         }
 
-        let Some((_, round)) = current_day else {
+        let Some((date, round)) = current_day else {
             continue;
         };
         let Some(caps) = time_re.captures(line) else {
             continue;
         };
         let label = caps.name("label").unwrap().as_str();
-        overlays.push(build_svensk_golf_overlay(&tournament, round, label));
+        let start = caps
+            .name("time")
+            .and_then(|clock| crate::sources::listing_time::interval(date, clock.as_str(), None))
+            .map(|interval| interval.0);
+        overlays.push(build_svensk_golf_overlay(
+            &tournament,
+            round,
+            label,
+            start,
+            season,
+        ));
     }
 
     overlays
-}
-
-fn parse_schedule_html_document(input: &str, season: i32) -> Vec<EventSeed> {
-    let next_data_re =
-        Regex::new(r#"<script[^>]+id="__NEXT_DATA__"[^>]*>(?P<json>.*?)</script>"#).unwrap();
-    let Some(json) = next_data_re
-        .captures(input)
-        .and_then(|caps| caps.name("json"))
-        .map(|value| value.as_str())
-    else {
-        return Vec::new();
-    };
-    let Ok(value) = serde_json::from_str::<Value>(json) else {
-        return Vec::new();
-    };
-    let Some(queries) = value
-        .get("props")
-        .and_then(|value| value.get("pageProps"))
-        .and_then(|value| value.get("dehydratedState"))
-        .and_then(|value| value.get("queries"))
-        .and_then(Value::as_array)
-    else {
-        return Vec::new();
-    };
-    let tournament = queries
-        .iter()
-        .find(|query| {
-            query
-                .get("queryKey")
-                .and_then(Value::as_array)
-                .and_then(|value| value.first())
-                .and_then(Value::as_str)
-                == Some("tournament")
-        })
-        .and_then(|query| query.get("state"))
-        .and_then(|value| value.get("data"));
-    let tournament_name = tournament
-        .and_then(|value| value.get("tournamentName"))
-        .and_then(Value::as_str)
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .map(ToString::to_string);
-    let round = tournament
-        .and_then(|value| value.get("currentRound"))
-        .and_then(Value::as_u64)
-        .and_then(|value| u8::try_from(value).ok());
-
-    build_current_round_event(tournament_name, round, season)
-        .into_iter()
-        .collect()
-}
-
-fn build_current_round_event(
-    tournament: Option<String>,
-    round: Option<u8>,
-    season: i32,
-) -> Option<EventSeed> {
-    let tournament = tournament?;
-    let round = round?;
-
-    Some(EventSeed {
-        id: format!(
-            "pga_tour_{}_{}_round_{}",
-            season,
-            slugify(&tournament),
-            round
-        ),
-        sport: "golf".into(),
-        competition: "pga_tour".into(),
-        title: format!("{} Round {}", tournament, round),
-        start_time: OffsetDateTime::now_utc(),
-        end_time: None,
-        status: EventStatus::Live,
-        venue: None,
-        round_label: Some(format!("Round {}", round)),
-        participants: Participants {
-            home: tournament.clone(),
-            away: "Field".into(),
-        },
-        source: "pga-tour-schedule".into(),
-        source_url: "https://www.pgatour.com/schedule".into(),
-    })
 }
 
 fn parse_broadcast_entries_html(input: &str, season: i32) -> Vec<BroadcastEntry> {
@@ -269,11 +187,23 @@ fn parse_broadcast_entries_html(input: &str, season: i32) -> Vec<BroadcastEntry>
         if let (Some(tournament), Some(round), Some(date), Some((start, end)), Some(network)) =
             (tournament, round, date, airtime, network)
         {
+            let Some(start_time) = crate::time_utils::local_time(
+                date,
+                start,
+                time_tz::timezones::db::america::NEW_YORK,
+            ) else {
+                continue;
+            };
+            let Some(end_time) =
+                crate::time_utils::local_time(date, end, time_tz::timezones::db::america::NEW_YORK)
+            else {
+                continue;
+            };
             entries.push(BroadcastEntry {
                 tournament,
                 round,
-                start_time: PrimitiveDateTime::new(date, start).assume_offset(EASTERN),
-                end_time: PrimitiveDateTime::new(date, end).assume_offset(EASTERN),
+                start_time,
+                end_time,
                 network,
             });
         }
@@ -299,7 +229,11 @@ fn extract_labeled_value(input: &str, label: &str, next_labels: &[&str]) -> Opti
     }
 }
 
-fn parse_svensk_golf_watch_html(input: &str, season: i32) -> Vec<WatchOverlay> {
+fn parse_svensk_golf_watch_html(
+    input: &str,
+    season: i32,
+    observed_at: OffsetDateTime,
+) -> Vec<WatchOverlay> {
     let document = Html::parse_document(input);
     let block_selector =
         Selector::parse("div.flex.flex-wrap.gap-5.py-8.border-t.border-t-grey-100").unwrap();
@@ -346,8 +280,19 @@ fn parse_svensk_golf_watch_html(input: &str, season: i32) -> Vec<WatchOverlay> {
                 if !matches!(label, "Feeder" | "Huvudsändning" | "Eurosport 2") {
                     continue;
                 }
-                let _season = season;
-                overlays.push(build_svensk_golf_overlay(&tournament, round, label));
+                let start =
+                    crate::sources::listing_time::resolve_date(&date_label, observed_at, season)
+                        .and_then(|date| {
+                            crate::sources::listing_time::interval(date, &values[0], None)
+                        })
+                        .map(|interval| interval.0);
+                overlays.push(build_svensk_golf_overlay(
+                    &tournament,
+                    round,
+                    label,
+                    start,
+                    season,
+                ));
             }
         }
     }
@@ -370,7 +315,13 @@ fn round_from_swedish_date_label(input: &str) -> Option<u8> {
     }
 }
 
-fn build_svensk_golf_overlay(tournament: &str, round: u8, label: &str) -> WatchOverlay {
+fn build_svensk_golf_overlay(
+    tournament: &str,
+    round: u8,
+    label: &str,
+    airing_start: Option<OffsetDateTime>,
+    season: i32,
+) -> WatchOverlay {
     WatchOverlay {
         competition: "pga_tour".into(),
         market: "se".into(),
@@ -386,6 +337,10 @@ fn build_svensk_golf_overlay(tournament: &str, round: u8, label: &str) -> WatchO
         confidence: if label == "Eurosport 2" { 0.97 } else { 0.99 },
         source: "svensk-golf-tv-guide".into(),
         source_url: "https://www.svenskgolf.se/sidor/har-ar-veckans-livesandningar/".into(),
+        airing_start,
+        airing_end: airing_start.map(|start| start + time::Duration::hours(4)),
+        season: Some(season),
+        round_number: Some(round),
     }
 }
 
@@ -439,8 +394,18 @@ fn parse_broadcast_entries(input: &str, season: i32) -> Vec<BroadcastEntry> {
         if let (Some(tournament), Some(round), Some(date), Some((start, end)), Some(network)) =
             (tournament, round, date, airtime, network)
         {
-            let start_time = PrimitiveDateTime::new(date, start).assume_offset(EASTERN);
-            let end_time = PrimitiveDateTime::new(date, end).assume_offset(EASTERN);
+            let Some(start_time) = crate::time_utils::local_time(
+                date,
+                start,
+                time_tz::timezones::db::america::NEW_YORK,
+            ) else {
+                continue;
+            };
+            let Some(end_time) =
+                crate::time_utils::local_time(date, end, time_tz::timezones::db::america::NEW_YORK)
+            else {
+                continue;
+            };
             entries.push(BroadcastEntry {
                 tournament,
                 round,
@@ -496,45 +461,32 @@ fn slugify(value: &str) -> String {
         .join("_")
 }
 
-fn infer_status(start: OffsetDateTime, end: OffsetDateTime) -> EventStatus {
-    let now = OffsetDateTime::now_utc();
-    if now < start {
-        EventStatus::Upcoming
-    } else if now <= end {
-        EventStatus::Live
-    } else {
-        EventStatus::Finished
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn parses_schedule_document() {
-        let input = include_str!("../../tests/fixtures/pga_schedule_readability.md");
-        let events = parse_schedule_document(input, 2026);
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].title, "RBC Heritage Round 2");
-    }
-
-    #[test]
-    fn parses_schedule_html_document() {
-        let input = r#"<html><body><script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"dehydratedState":{"queries":[{"queryKey":["tournament",{"id":"R2026012"}],"state":{"data":{"tournamentName":"RBC Heritage","currentRound":2}}}]}}}}</script></body></html>"#;
-        let events = parse_schedule_document(input, 2026);
-        assert_eq!(events.len(), 1);
-        assert_eq!(events[0].title, "RBC Heritage Round 2");
-    }
-
-    #[test]
     fn parses_broadcast_events() {
         let input = include_str!("../../tests/fixtures/pga_broadcast_schedule_readability.md");
-        let events = parse_broadcast_events_document(input, 2026);
+        let events = parse_broadcast_events_document_at(
+            input,
+            2026,
+            time::macros::datetime!(2026-01-01 00:00 UTC),
+        );
         assert_eq!(events.len(), 4);
         assert!(events
             .iter()
             .any(|event| event.title == "RBC Heritage Round 3"));
+        let round_two = events
+            .iter()
+            .find(|event| event.title == "RBC Heritage Round 2")
+            .unwrap();
+        assert_eq!(
+            round_two.start_time.to_offset(time::UtcOffset::UTC),
+            time::macros::datetime!(2026-04-17 11:00 UTC)
+        );
+        assert_eq!(round_two.source, "pga-tour-broadcast");
+        assert!(round_two.end_time.is_some());
     }
 
     #[test]
@@ -560,7 +512,11 @@ mod tests {
     #[test]
     fn parses_svensk_golf_watch() {
         let input = include_str!("../../tests/fixtures/pga_svenskgolf_rbc_heritage.md");
-        let overlays = parse_svensk_golf_watch_document(input, 2026);
+        let overlays = parse_svensk_golf_watch_document_at(
+            input,
+            2026,
+            time::macros::datetime!(2026-04-01 00:00 UTC),
+        );
         assert!(overlays
             .iter()
             .any(|overlay| overlay.title == "RBC Heritage Round 3"));
@@ -572,7 +528,11 @@ mod tests {
     #[test]
     fn parses_svensk_golf_weekly_watch() {
         let input = include_str!("../../tests/fixtures/pga_svenskgolf_weekly.md");
-        let overlays = parse_svensk_golf_watch_document(input, 2026);
+        let overlays = parse_svensk_golf_watch_document_at(
+            input,
+            2026,
+            time::macros::datetime!(2026-04-01 00:00 UTC),
+        );
         assert!(overlays
             .iter()
             .any(|overlay| overlay.title == "RBC Heritage Round 4"));
@@ -581,7 +541,11 @@ mod tests {
     #[test]
     fn parses_svensk_golf_html_watch() {
         let input = r#"<html><body><div class="flex flex-wrap gap-5 py-8 border-t border-t-grey-100"><div class="flex flex-col items-start gap-5 flex-auto w-[60%]"><h2 class="text-xl">RBC Heritage</h2></div><div class="flex flex-col flex-shrink gap-6"><ul role="list"><li class="flex gap-4 py-3 border-t border-t-grey-100"><span class="whitespace-nowrap w-[112px]"><span class="font-bold">16</span> apr., torsdag</span><ul role="list"><li class="flex gap-2.5"><span class="w-[5ch]">13:00</span><span>Feeder</span></li><li class="flex gap-2.5"><span class="w-[5ch]">20:00</span><span>Eurosport 2</span></li></ul></li></ul></div></div></body></html>"#;
-        let overlays = parse_svensk_golf_watch_document(input, 2026);
+        let overlays = parse_svensk_golf_watch_document_at(
+            input,
+            2026,
+            time::macros::datetime!(2026-04-01 00:00 UTC),
+        );
         assert_eq!(overlays.len(), 2);
         assert!(overlays
             .iter()

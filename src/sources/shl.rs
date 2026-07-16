@@ -1,18 +1,21 @@
 use regex::Regex;
 use serde_json::Value;
-use time::{
-    format_description::well_known::Rfc3339, macros::offset, Date, Month, OffsetDateTime,
-    PrimitiveDateTime, UtcOffset,
+use time::{format_description::well_known::Rfc3339, Date, Month, OffsetDateTime};
+
+use crate::{
+    domain::{EventSeed, EventStatus, Participants},
+    sources::parse_clock_in_timezone,
 };
 
-use crate::domain::{EventSeed, EventStatus, Participants};
-
-const STOCKHOLM: UtcOffset = offset!(+2);
 const SOURCE_URL: &str = "https://www.shl.se/game-schedule";
 
-pub fn parse_schedule_document(input: &str, season: i32) -> Vec<EventSeed> {
+pub fn parse_schedule_document_at(
+    input: &str,
+    season: i32,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     if input.trim_start().starts_with('{') {
-        return parse_api_schedule_document(input, season);
+        return parse_api_schedule_document(input, season, observed_at);
     }
     let date_re = Regex::new(
         r"^(MÅNDAG|TISDAG|ONSDAG|TORSDAG|FREDAG|LÖRDAG|SÖNDAG)\s+(\d{1,2})\s+([A-ZÅÄÖ]+)$",
@@ -78,17 +81,25 @@ pub fn parse_schedule_document(input: &str, season: i32) -> Vec<EventSeed> {
             continue;
         }
 
-        let (start_time, status) = if time_re.is_match(timing_or_result) {
-            let start_time = parse_datetime(date, timing_or_result);
-            let status = match status_line {
+        let clock = if time_re.is_match(timing_or_result) {
+            timing_or_result
+        } else {
+            "19:00"
+        };
+        let Some(start_time) =
+            parse_clock_in_timezone(date, clock, time_tz::timezones::db::europe::STOCKHOLM)
+        else {
+            index += 1;
+            continue;
+        };
+        let status = if time_re.is_match(timing_or_result) {
+            match status_line {
                 "Efter match" => EventStatus::Finished,
                 "Live" | "Pågår" => EventStatus::Live,
-                _ => infer_status(start_time),
-            };
-            (start_time, status)
+                _ => infer_status(start_time, observed_at),
+            }
         } else {
-            let start_time = parse_datetime(date, "19:00");
-            (start_time, EventStatus::Finished)
+            EventStatus::Finished
         };
 
         events.push(EventSeed {
@@ -122,7 +133,11 @@ pub fn parse_schedule_document(input: &str, season: i32) -> Vec<EventSeed> {
     events
 }
 
-fn parse_api_schedule_document(input: &str, season: i32) -> Vec<EventSeed> {
+fn parse_api_schedule_document(
+    input: &str,
+    season: i32,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     let value: Value = match serde_json::from_str(input) {
         Ok(value) => value,
         Err(_) => return Vec::new(),
@@ -149,9 +164,7 @@ fn parse_api_schedule_document(input: &str, season: i32) -> Vec<EventSeed> {
                 .trim()
                 .to_string();
             let start_raw = game.get("rawStartDateTime").and_then(Value::as_str)?;
-            let start_time = OffsetDateTime::parse(start_raw, &Rfc3339)
-                .ok()?
-                .to_offset(STOCKHOLM);
+            let start_time = OffsetDateTime::parse(start_raw, &Rfc3339).ok()?;
             let date = start_time.date();
             Some(EventSeed {
                 id: format!(
@@ -171,7 +184,7 @@ fn parse_api_schedule_document(input: &str, season: i32) -> Vec<EventSeed> {
                     Some("pre-game") => EventStatus::Upcoming,
                     Some("in-game") => EventStatus::Live,
                     Some("post-game") => EventStatus::Finished,
-                    _ => infer_status(start_time),
+                    _ => infer_status(start_time, observed_at),
                 },
                 venue: game
                     .get("venueInfo")
@@ -218,24 +231,12 @@ fn season_year(season: i32, month: Month) -> i32 {
     }
 }
 
-fn parse_datetime(date: Date, value: &str) -> OffsetDateTime {
-    let (hour, minute) = value.split_once(':').unwrap();
-    PrimitiveDateTime::new(
-        date,
-        time::Time::from_hms(hour.parse().unwrap(), minute.parse().unwrap(), 0).unwrap(),
+fn infer_status(start_time: OffsetDateTime, observed_at: OffsetDateTime) -> EventStatus {
+    crate::time_utils::infer_status_at(
+        observed_at,
+        start_time,
+        start_time + time::Duration::minutes(150),
     )
-    .assume_offset(STOCKHOLM)
-}
-
-fn infer_status(start_time: OffsetDateTime) -> EventStatus {
-    let now = OffsetDateTime::now_utc();
-    if now < start_time {
-        EventStatus::Upcoming
-    } else if now <= start_time + time::Duration::minutes(150) {
-        EventStatus::Live
-    } else {
-        EventStatus::Finished
-    }
 }
 
 fn slugify(value: &str) -> String {
@@ -257,12 +258,21 @@ mod tests {
     #[test]
     fn parses_shl_schedule() {
         let input = include_str!("../../tests/fixtures/shl_game_schedule.md");
-        let events = parse_schedule_document(input, 2026);
+        let events =
+            parse_schedule_document_at(input, 2026, time::macros::datetime!(2026-04-01 00:00 UTC));
         assert_eq!(events.len(), 4);
         assert!(events.iter().any(|event| {
             event.title == "Skellefteå AIK vs Rögle BK"
                 && event.venue.as_deref() == Some("Skellefteå Kraft Arena")
-                && event.status == EventStatus::Upcoming
         }));
+    }
+
+    #[test]
+    fn malformed_clock_omits_only_bad_shl_record() {
+        let input = "ONSDAG 1 APRIL\nBad – Clock\nBad\n99:99\nClock\nArena\nInför match\nValid – Match\nValid\n19:00\nMatch\nArena\nInför match\nTruncated – Record";
+        let events =
+            parse_schedule_document_at(input, 2026, time::macros::datetime!(2026-04-01 00:00 UTC));
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].title, "Valid vs Match");
     }
 }

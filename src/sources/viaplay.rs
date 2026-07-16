@@ -103,6 +103,10 @@ fn build_overlay(
         confidence: if is_studio { 0.96 } else { 0.99 },
         source: "viaplay-listing".into(),
         source_url: source_url.into(),
+        airing_start: None,
+        airing_end: None,
+        season: None,
+        round_number: None,
     }
 }
 

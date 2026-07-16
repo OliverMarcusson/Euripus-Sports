@@ -1,12 +1,16 @@
 use scraper::{Html, Selector};
-use time::{macros::offset, Date, Month, OffsetDateTime, PrimitiveDateTime, Time, UtcOffset};
+use time::{Date, Month, OffsetDateTime};
+use time_tz::Tz;
 
 use crate::domain::{EventSeed, EventStatus, Participants};
 
-const STOCKHOLM: UtcOffset = offset!(+2);
 const SOURCE_URL: &str = "https://www.formula1.com/en/latest/article/official-grand-prix-start-times-for-2026-f1-season-confirmed.2UgPfArqH76tzlOYh21jSG";
 
-pub fn parse_race_times_document(input: &str, season: i32) -> Vec<EventSeed> {
+pub fn parse_race_times_document_at(
+    input: &str,
+    season: i32,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     let document = Html::parse_document(input);
     let table_selector = Selector::parse("table").unwrap();
     let header_selector = Selector::parse("thead th").unwrap();
@@ -43,7 +47,7 @@ pub fn parse_race_times_document(input: &str, season: i32) -> Vec<EventSeed> {
             let Some(metadata) = metadata_for_venue(venue_key) else {
                 continue;
             };
-            let Some(start_time) = parse_local_start(date, &cells[3], metadata.local_offset) else {
+            let Some(start_time) = parse_local_start(date, &cells[3], metadata.timezone) else {
                 continue;
             };
 
@@ -65,9 +69,9 @@ pub fn parse_race_times_document(input: &str, season: i32) -> Vec<EventSeed> {
                 sport: "motorsport".into(),
                 competition: "formula_1".into(),
                 title: title.clone(),
-                start_time: start_time.to_offset(STOCKHOLM),
-                end_time: Some((start_time + time::Duration::hours(3)).to_offset(STOCKHOLM)),
-                status: infer_status(start_time),
+                start_time,
+                end_time: Some(start_time + time::Duration::hours(3)),
+                status: infer_status(start_time, observed_at),
                 venue: Some(metadata.venue.to_string()),
                 round_label: Some(format!("Round {}", round)),
                 participants: Participants {
@@ -89,7 +93,7 @@ struct Formula1RaceMetadata {
     slug: &'static str,
     title_prefix: &'static str,
     venue: &'static str,
-    local_offset: UtcOffset,
+    timezone: &'static Tz,
 }
 
 fn metadata_for_venue(venue: &str) -> Option<Formula1RaceMetadata> {
@@ -98,145 +102,145 @@ fn metadata_for_venue(venue: &str) -> Option<Formula1RaceMetadata> {
             slug: "australia",
             title_prefix: "Australian",
             venue: "Melbourne",
-            local_offset: offset!(+11),
+            timezone: time_tz::timezones::db::australia::MELBOURNE,
         }),
         "China" => Some(Formula1RaceMetadata {
             slug: "china",
             title_prefix: "Chinese",
             venue: "Shanghai",
-            local_offset: offset!(+8),
+            timezone: time_tz::timezones::db::asia::SHANGHAI,
         }),
         "Japan" => Some(Formula1RaceMetadata {
             slug: "japan",
             title_prefix: "Japanese",
             venue: "Suzuka",
-            local_offset: offset!(+9),
+            timezone: time_tz::timezones::db::asia::TOKYO,
         }),
         "Bahrain" => Some(Formula1RaceMetadata {
             slug: "bahrain",
             title_prefix: "Bahrain",
             venue: "Bahrain International Circuit",
-            local_offset: offset!(+3),
+            timezone: time_tz::timezones::db::asia::BAHRAIN,
         }),
         "Saudi Arabia" => Some(Formula1RaceMetadata {
             slug: "saudi_arabia",
             title_prefix: "Saudi Arabian",
             venue: "Jeddah Corniche Circuit",
-            local_offset: offset!(+3),
+            timezone: time_tz::timezones::db::asia::RIYADH,
         }),
         "Miami" => Some(Formula1RaceMetadata {
             slug: "miami",
             title_prefix: "Miami",
             venue: "Miami International Autodrome",
-            local_offset: offset!(-4),
+            timezone: time_tz::timezones::db::america::NEW_YORK,
         }),
         "Canada" => Some(Formula1RaceMetadata {
             slug: "canada",
             title_prefix: "Canadian",
             venue: "Circuit Gilles Villeneuve",
-            local_offset: offset!(-4),
+            timezone: time_tz::timezones::db::america::TORONTO,
         }),
         "Monaco" => Some(Formula1RaceMetadata {
             slug: "monaco",
             title_prefix: "Monaco",
             venue: "Circuit de Monaco",
-            local_offset: offset!(+2),
+            timezone: time_tz::timezones::db::europe::PARIS,
         }),
         "Barcelona" | "Barcelona-Catalunya" => Some(Formula1RaceMetadata {
             slug: "barcelona",
             title_prefix: "Spanish",
             venue: "Circuit de Barcelona-Catalunya",
-            local_offset: offset!(+2),
+            timezone: time_tz::timezones::db::europe::MADRID,
         }),
         "Austria" => Some(Formula1RaceMetadata {
             slug: "austria",
             title_prefix: "Austrian",
             venue: "Red Bull Ring",
-            local_offset: offset!(+2),
+            timezone: time_tz::timezones::db::europe::VIENNA,
         }),
         "Great Britain" => Some(Formula1RaceMetadata {
             slug: "great_britain",
             title_prefix: "British",
             venue: "Silverstone Circuit",
-            local_offset: offset!(+1),
+            timezone: time_tz::timezones::db::europe::LONDON,
         }),
         "Belgium" => Some(Formula1RaceMetadata {
             slug: "belgium",
             title_prefix: "Belgian",
             venue: "Circuit de Spa-Francorchamps",
-            local_offset: offset!(+2),
+            timezone: time_tz::timezones::db::europe::BRUSSELS,
         }),
         "Hungary" => Some(Formula1RaceMetadata {
             slug: "hungary",
             title_prefix: "Hungarian",
             venue: "Hungaroring",
-            local_offset: offset!(+2),
+            timezone: time_tz::timezones::db::europe::BUDAPEST,
         }),
         "Netherlands" => Some(Formula1RaceMetadata {
             slug: "netherlands",
             title_prefix: "Dutch",
             venue: "Circuit Zandvoort",
-            local_offset: offset!(+2),
+            timezone: time_tz::timezones::db::europe::AMSTERDAM,
         }),
         "Italy" => Some(Formula1RaceMetadata {
             slug: "italy",
             title_prefix: "Italian",
             venue: "Autodromo Nazionale Monza",
-            local_offset: offset!(+2),
+            timezone: time_tz::timezones::db::europe::ROME,
         }),
         "Spain" => Some(Formula1RaceMetadata {
             slug: "spain",
             title_prefix: "Spanish",
             venue: "Madring",
-            local_offset: offset!(+2),
+            timezone: time_tz::timezones::db::europe::MADRID,
         }),
         "Azerbaijan" => Some(Formula1RaceMetadata {
             slug: "azerbaijan",
             title_prefix: "Azerbaijan",
             venue: "Baku City Circuit",
-            local_offset: offset!(+4),
+            timezone: time_tz::timezones::db::asia::BAKU,
         }),
         "Singapore" => Some(Formula1RaceMetadata {
             slug: "singapore",
             title_prefix: "Singapore",
             venue: "Marina Bay Street Circuit",
-            local_offset: offset!(+8),
+            timezone: time_tz::timezones::db::SINGAPORE,
         }),
         "United States" => Some(Formula1RaceMetadata {
             slug: "united_states",
             title_prefix: "United States",
             venue: "Circuit of The Americas",
-            local_offset: offset!(-5),
+            timezone: time_tz::timezones::db::america::CHICAGO,
         }),
         "Mexico" => Some(Formula1RaceMetadata {
             slug: "mexico",
             title_prefix: "Mexico City",
             venue: "Autódromo Hermanos Rodríguez",
-            local_offset: offset!(-6),
+            timezone: time_tz::timezones::db::america::MEXICO_CITY,
         }),
         "Brazil" => Some(Formula1RaceMetadata {
             slug: "brazil",
             title_prefix: "São Paulo",
             venue: "Interlagos",
-            local_offset: offset!(-3),
+            timezone: time_tz::timezones::db::america::SAO_PAULO,
         }),
         "Las Vegas" => Some(Formula1RaceMetadata {
             slug: "las_vegas",
             title_prefix: "Las Vegas",
             venue: "Las Vegas Strip Circuit",
-            local_offset: offset!(-8),
+            timezone: time_tz::timezones::db::america::LOS_ANGELES,
         }),
         "Qatar" => Some(Formula1RaceMetadata {
             slug: "qatar",
             title_prefix: "Qatar",
             venue: "Lusail International Circuit",
-            local_offset: offset!(+3),
+            timezone: time_tz::timezones::db::asia::QATAR,
         }),
         "Abu Dhabi" => Some(Formula1RaceMetadata {
             slug: "abu_dhabi",
             title_prefix: "Abu Dhabi",
             venue: "Yas Marina Circuit",
-            local_offset: offset!(+4),
+            timezone: time_tz::timezones::db::asia::DUBAI,
         }),
         _ => None,
     }
@@ -269,26 +273,20 @@ fn parse_month(value: &str) -> Option<Month> {
     }
 }
 
-fn parse_local_start(date: Date, value: &str, offset: UtcOffset) -> Option<OffsetDateTime> {
+fn parse_local_start(date: Date, value: &str, timezone: &'static Tz) -> Option<OffsetDateTime> {
     let value = value.trim();
     if value.len() != 4 || value == "-" {
         return None;
     }
-    let hour = value[0..2].parse::<u8>().ok()?;
-    let minute = value[2..4].parse::<u8>().ok()?;
-    let time = Time::from_hms(hour, minute, 0).ok()?;
-    Some(PrimitiveDateTime::new(date, time).assume_offset(offset))
+    crate::time_utils::local_datetime(date, &format!("{}:{}", &value[..2], &value[2..]), timezone)
 }
 
-fn infer_status(start_time: OffsetDateTime) -> EventStatus {
-    let now = OffsetDateTime::now_utc();
-    if now < start_time {
-        EventStatus::Upcoming
-    } else if now <= start_time + time::Duration::hours(3) {
-        EventStatus::Live
-    } else {
-        EventStatus::Finished
-    }
+fn infer_status(start_time: OffsetDateTime, observed_at: OffsetDateTime) -> EventStatus {
+    crate::time_utils::infer_status_at(
+        observed_at,
+        start_time,
+        start_time + time::Duration::hours(3),
+    )
 }
 
 fn text_content(element: scraper::ElementRef<'_>) -> String {
@@ -308,7 +306,11 @@ mod tests {
     #[test]
     fn parses_formula1_race_times_fixture() {
         let input = include_str!("../../tests/fixtures/formula1_2026_start_times.html");
-        let events = parse_race_times_document(input, 2026);
+        let events = parse_race_times_document_at(
+            input,
+            2026,
+            time::macros::datetime!(2026-01-01 00:00 UTC),
+        );
         assert_eq!(events.len(), 24);
 
         let miami = events
@@ -317,8 +319,8 @@ mod tests {
             .unwrap();
         assert_eq!(miami.title, "Miami Grand Prix");
         assert_eq!(
-            miami.start_time.to_string(),
-            "2026-05-03 22:00:00.0 +02:00:00"
+            miami.start_time.to_offset(time::UtcOffset::UTC),
+            time::macros::datetime!(2026-05-03 20:00 UTC)
         );
         assert_eq!(miami.round_label.as_deref(), Some("Round 6"));
         assert_eq!(

@@ -2,9 +2,7 @@ use regex::Regex;
 use scraper::{Html, Selector};
 use serde_json::Value;
 use time::{
-    format_description::well_known::Rfc3339,
-    macros::{format_description, offset},
-    Date, OffsetDateTime, PrimitiveDateTime, UtcOffset,
+    format_description::well_known::Rfc3339, macros::format_description, Date, OffsetDateTime,
 };
 
 use crate::{
@@ -14,7 +12,6 @@ use crate::{
 
 const DATE_FORMAT: &[time::format_description::FormatItem<'static>] =
     format_description!("[day] [month repr:long] [year]");
-const STOCKHOLM: UtcOffset = offset!(+2);
 
 pub fn parse_document(input: &str, season: i32, config: &AppConfig) -> Vec<EventSeed> {
     if input.trim_start().starts_with('{') {
@@ -68,7 +65,9 @@ pub fn parse_markdown(input: &str, season: i32, config: &AppConfig) -> Vec<Event
         let home = config.canonical_team_name("superettan", &home);
         let away = config.canonical_team_name("superettan", &away);
         let slug = raw_url.rsplit('/').next().unwrap_or("superettan-match");
-        let start_time = parse_datetime(date, time);
+        let Some(start_time) = parse_datetime(date, time) else {
+            continue;
+        };
 
         events.push(EventSeed {
             id: format!("superettan_{}_{}", season, slug.replace('-', "_")),
@@ -118,7 +117,9 @@ pub fn parse_svenskfotboll_article(input: &str, season: i32, config: &AppConfig)
             config.canonical_team_name("superettan", caps.name("home").unwrap().as_str().trim());
         let away =
             config.canonical_team_name("superettan", caps.name("away").unwrap().as_str().trim());
-        let start_time = parse_datetime(date, &time);
+        let Some(start_time) = parse_datetime(date, &time) else {
+            continue;
+        };
 
         events.push(EventSeed {
             id: format!("superettan_{}_{}_{}", season, slugify(&home), slugify(&away)),
@@ -210,9 +211,7 @@ fn parse_graphql_response(input: &str, season: i32, config: &AppConfig) -> Vec<E
             let home = game.get("homeTeamName")?.as_str()?.trim();
             let away = game.get("visitingTeamName")?.as_str()?.trim();
             let start_raw = game.get("startDate")?.as_str()?;
-            let start_time = OffsetDateTime::parse(start_raw, &Rfc3339)
-                .ok()?
-                .to_offset(STOCKHOLM);
+            let start_time = OffsetDateTime::parse(start_raw, &Rfc3339).ok()?;
             let home = config.canonical_team_name("superettan", home);
             let away = config.canonical_team_name("superettan", away);
             let fogis_id = game
@@ -274,24 +273,12 @@ fn parse_swedish_month(value: &str) -> Option<time::Month> {
     }
 }
 
-fn parse_datetime(date: Date, time: &str) -> OffsetDateTime {
-    let (hour, minute) = time.split_once(':').unwrap();
-    PrimitiveDateTime::new(
-        date,
-        time::Time::from_hms(hour.parse().unwrap(), minute.parse().unwrap(), 0).unwrap(),
-    )
-    .assume_offset(STOCKHOLM)
+fn parse_datetime(date: Date, value: &str) -> Option<OffsetDateTime> {
+    super::parse_clock_in_timezone(date, value, time_tz::timezones::db::europe::STOCKHOLM)
 }
 
-fn infer_status(start_time: OffsetDateTime) -> EventStatus {
-    let now = OffsetDateTime::now_utc();
-    if now < start_time {
-        EventStatus::Upcoming
-    } else if now <= start_time + time::Duration::hours(2) {
-        EventStatus::Live
-    } else {
-        EventStatus::Finished
-    }
+fn infer_status(_: OffsetDateTime) -> EventStatus {
+    EventStatus::Upcoming
 }
 
 fn slugify(value: &str) -> String {

@@ -32,6 +32,16 @@ pub struct SourceDefinition {
     pub request_method: SourceRequestMethod,
     pub request_body: Option<String>,
     pub season: Option<i32>,
+    #[serde(default = "default_true")]
+    pub enabled_in_live: bool,
+    #[serde(default)]
+    pub allow_empty: bool,
+    #[serde(default)]
+    pub priority: i32,
+}
+
+fn default_true() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -58,7 +68,6 @@ pub enum ParserKind {
     Tv4playAllsvenskan,
     Tv4playShl,
     Tv4playHockeyallsvenskan,
-    PgaTourSchedule,
     PgaTourBroadcastEvents,
     PgaTourBroadcastWatch,
     PgaTourSvenskGolfWatch,
@@ -165,27 +174,15 @@ impl AppConfig {
         })
     }
 
-    pub fn with_source_data(
-        mut self,
+    pub fn for_publication(
+        &self,
         events: Vec<EventSeed>,
         watch_overlays: Vec<WatchOverlay>,
     ) -> Self {
-        if !events.is_empty() {
-            let competitions = events
-                .iter()
-                .map(|event| event.competition.clone())
-                .collect::<std::collections::HashSet<_>>();
-            self.events
-                .retain(|event| !competitions.contains(&event.competition));
-            let mut seen_ids = std::collections::HashSet::new();
-            self.events.extend(
-                events
-                    .into_iter()
-                    .filter(|event| seen_ids.insert(event.id.clone())),
-            );
-        }
-        self.watch_overlays = watch_overlays;
-        self
+        let mut config = self.clone();
+        config.events = events;
+        config.watch_overlays = watch_overlays;
+        config
     }
 
     pub fn canonical_team_name(&self, competition: &str, raw: &str) -> String {

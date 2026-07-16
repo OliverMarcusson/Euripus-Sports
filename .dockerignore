@@ -1,7 +1,12 @@
 target
 .git
 .gitignore
+.pi-subagents
 sports-api.db
 *.db
 *.log
 .DS_Store
+.env
+.env.*
+.env.selfhosted-images
+!.env*.example

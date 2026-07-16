@@ -1,25 +1,26 @@
 use regex::Regex;
 use scraper::{Html, Selector};
 use serde_json::Value;
-use time::{
-    format_description::well_known::Rfc3339, macros::offset, Date, Month, OffsetDateTime,
-    PrimitiveDateTime, UtcOffset,
-};
+use time::{format_description::well_known::Rfc3339, Date, Month, OffsetDateTime};
 
 use crate::{
     config::AppConfig,
     domain::{EventSeed, EventStatus, Participants},
 };
 
-const STOCKHOLM: UtcOffset = offset!(+2);
 const SOURCE_URL: &str = "https://www.sdhl.se/game-schedule";
 
-pub fn parse_schedule_document(input: &str, season: i32, config: &AppConfig) -> Vec<EventSeed> {
+pub fn parse_schedule_document_at(
+    input: &str,
+    season: i32,
+    config: &AppConfig,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     if input.trim_start().starts_with('{') {
-        return parse_api_schedule_document(input, season, config);
+        return parse_api_schedule_document(input, season, config, observed_at);
     }
     if input.contains("<html") || input.contains("<!DOCTYPE html") {
-        return parse_html_schedule_document(input, season, config);
+        return parse_html_schedule_document(input, season, config, observed_at);
     }
 
     let date_re = Regex::new(
@@ -84,16 +85,23 @@ pub fn parse_schedule_document(input: &str, season: i32, config: &AppConfig) -> 
             continue;
         }
 
-        let (start_time, status) = if time_re.is_match(timing_or_result) {
-            let start_time = parse_datetime(date, timing_or_result);
-            let status = match status_line {
+        let clock = if time_re.is_match(timing_or_result) {
+            timing_or_result
+        } else {
+            "19:00"
+        };
+        let Some(start_time) = parse_datetime(date, clock) else {
+            index += 1;
+            continue;
+        };
+        let status = if time_re.is_match(timing_or_result) {
+            match status_line {
                 "Efter match" => EventStatus::Finished,
                 "Live" | "Pågår" => EventStatus::Live,
-                _ => infer_status(start_time),
-            };
-            (start_time, status)
+                _ => infer_status(start_time, observed_at),
+            }
         } else {
-            (parse_datetime(date, "19:00"), EventStatus::Finished)
+            EventStatus::Finished
         };
 
         events.push(build_event(
@@ -111,7 +119,12 @@ pub fn parse_schedule_document(input: &str, season: i32, config: &AppConfig) -> 
     events
 }
 
-fn parse_html_schedule_document(input: &str, season: i32, config: &AppConfig) -> Vec<EventSeed> {
+fn parse_html_schedule_document(
+    input: &str,
+    season: i32,
+    config: &AppConfig,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     let document = Html::parse_document(input);
     let section_selector = Selector::parse("section.list").unwrap();
     let date_selector = Selector::parse("h2").unwrap();
@@ -156,21 +169,22 @@ fn parse_html_schedule_document(input: &str, season: i32, config: &AppConfig) ->
                 .map(text_content)
                 .unwrap_or_default();
 
-            let (start_time, status) =
-                if looks_finished_score(&time_or_result) || action.contains("Efter match") {
-                    (parse_datetime(date, "19:00"), EventStatus::Finished)
-                } else if looks_like_time(&time_or_result) {
-                    let start_time = parse_datetime(date, &time_or_result);
-                    let status = if action.contains("Live") || action.contains("Pågår") {
-                        EventStatus::Live
-                    } else {
-                        infer_status(start_time)
-                    };
-                    (start_time, status)
-                } else {
-                    let start_time = parse_datetime(date, "19:00");
-                    (start_time, infer_status(start_time))
-                };
+            let clock = if looks_like_time(&time_or_result) {
+                time_or_result.as_str()
+            } else {
+                "19:00"
+            };
+            let Some(start_time) = parse_datetime(date, clock) else {
+                continue;
+            };
+            let status = if looks_finished_score(&time_or_result) || action.contains("Efter match")
+            {
+                EventStatus::Finished
+            } else if action.contains("Live") || action.contains("Pågår") {
+                EventStatus::Live
+            } else {
+                infer_status(start_time, observed_at)
+            };
 
             events.push(build_event(
                 home, away, start_time, venue, None, status, season,
@@ -181,7 +195,12 @@ fn parse_html_schedule_document(input: &str, season: i32, config: &AppConfig) ->
     events
 }
 
-fn parse_api_schedule_document(input: &str, season: i32, config: &AppConfig) -> Vec<EventSeed> {
+fn parse_api_schedule_document(
+    input: &str,
+    season: i32,
+    config: &AppConfig,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     let value: Value = match serde_json::from_str(input) {
         Ok(value) => value,
         Err(_) => return Vec::new(),
@@ -209,9 +228,7 @@ fn parse_api_schedule_document(input: &str, season: i32, config: &AppConfig) -> 
             let home = config.canonical_team_name("sdhl", home_raw);
             let away = config.canonical_team_name("sdhl", away_raw);
             let start_raw = game.get("rawStartDateTime").and_then(Value::as_str)?;
-            let start_time = OffsetDateTime::parse(start_raw, &Rfc3339)
-                .ok()?
-                .to_offset(STOCKHOLM);
+            let start_time = OffsetDateTime::parse(start_raw, &Rfc3339).ok()?;
             Some(build_event(
                 home,
                 away,
@@ -228,7 +245,7 @@ fn parse_api_schedule_document(input: &str, season: i32, config: &AppConfig) -> 
                     Some("pre-game") => EventStatus::Upcoming,
                     Some("in-game") => EventStatus::Live,
                     Some("post-game") => EventStatus::Finished,
-                    _ => infer_status(start_time),
+                    _ => infer_status(start_time, observed_at),
                 },
                 season,
             ))
@@ -294,23 +311,15 @@ fn season_year(season: i32, month: Month) -> i32 {
         _ => season,
     }
 }
-fn parse_datetime(date: Date, value: &str) -> OffsetDateTime {
-    let (hour, minute) = value.split_once(':').unwrap();
-    PrimitiveDateTime::new(
-        date,
-        time::Time::from_hms(hour.parse().unwrap(), minute.parse().unwrap(), 0).unwrap(),
-    )
-    .assume_offset(STOCKHOLM)
+fn parse_datetime(date: Date, value: &str) -> Option<OffsetDateTime> {
+    super::parse_clock_in_timezone(date, value, time_tz::timezones::db::europe::STOCKHOLM)
 }
-fn infer_status(start_time: OffsetDateTime) -> EventStatus {
-    let now = OffsetDateTime::now_utc();
-    if now < start_time {
-        EventStatus::Upcoming
-    } else if now <= start_time + time::Duration::minutes(150) {
-        EventStatus::Live
-    } else {
-        EventStatus::Finished
-    }
+fn infer_status(start_time: OffsetDateTime, observed_at: OffsetDateTime) -> EventStatus {
+    crate::time_utils::infer_status_at(
+        observed_at,
+        start_time,
+        start_time + time::Duration::minutes(150),
+    )
 }
 fn slugify(value: &str) -> String {
     value
@@ -376,7 +385,12 @@ mod tests {
             "config/team_aliases.yaml",
         )
         .unwrap();
-        let events = parse_schedule_document(input, 2026, &config);
+        let events = parse_schedule_document_at(
+            input,
+            2026,
+            &config,
+            time::macros::datetime!(2026-01-01 00:00 UTC),
+        );
         assert_eq!(events.len(), 2);
         assert!(events
             .iter()

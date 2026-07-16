@@ -8,15 +8,15 @@ const LEAGUE: LeagueConfig<'static> = LeagueConfig {
     competition: "damallsvenskan",
     base_url: "www.obosdamallsvenskan.se",
     source_prefix: "damallsvenskan",
-    article_source_url: Some("https://www.obosdamallsvenskan.se/"),
 };
 
-pub fn parse_document(input: &str, season: i32, config: &AppConfig) -> Vec<EventSeed> {
-    svenskfotboll_league::parse_document(input, season, config, LEAGUE)
-}
-
-pub fn parse_svenskfotboll_article(input: &str, season: i32, config: &AppConfig) -> Vec<EventSeed> {
-    svenskfotboll_league::parse_svenskfotboll_article(input, season, config, LEAGUE)
+pub fn parse_document_at(
+    input: &str,
+    season: i32,
+    config: &AppConfig,
+    observed_at: time::OffsetDateTime,
+) -> Vec<EventSeed> {
+    svenskfotboll_league::parse_document_at(input, season, config, LEAGUE, observed_at)
 }
 
 #[cfg(test)]
@@ -34,7 +34,12 @@ mod tests {
             "config/team_aliases.yaml",
         )
         .unwrap();
-        let events = parse_document(input, 2026, &config);
+        let events = parse_document_at(
+            input,
+            2026,
+            &config,
+            time::macros::datetime!(2026-01-01 00:00 UTC),
+        );
         assert_eq!(events.len(), 2);
         assert!(events.iter().any(|event| {
             event.title == "Hammarby IF vs BK Häcken"

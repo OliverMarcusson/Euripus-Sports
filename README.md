@@ -29,7 +29,9 @@ Implemented or largely implemented:
 
 ## API endpoints
 
-- `GET /health`
+- `GET /health` (liveness compatibility alias)
+- `GET /health/live`
+- `GET /health/ready`
 - `GET /v1/events/live`
 - `GET /v1/events/upcoming?hours=72`
 - `GET /v1/events/today`
@@ -60,7 +62,7 @@ Implemented or largely implemented:
 Best for deterministic local development:
 
 ```bash
-cargo run -- --listen 127.0.0.1:3000 --source-fetch-mode fixture
+cargo run -- --source-fetch-mode fixture
 ```
 
 ### Live/auto mode
@@ -111,11 +113,7 @@ Default image:
 
 - `ghcr.io/olivermarcusson/euripus-sports-api`
 
-Copy the example env file:
-
-```bash
-cp .env.selfhosted-images.example .env.selfhosted-images
-```
+Keep registry credentials outside the repository and Docker build context. Prefer `docker login` with a credential helper or a CI secret store. If an env file is needed, create it with mode `0600` at `${XDG_CONFIG_HOME:-$HOME/.config}/euripus-sports/images.env`; `.env.selfhosted-images.example` is a token-free template.
 
 Then publish:
 
@@ -132,14 +130,7 @@ This pushes two tags:
 
 ### Server pull/deploy flow
 
-Use the GHCR-based compose file on your server:
-
-```bash
-docker compose --env-file .env.selfhosted-images -f compose.selfhosted.yml pull
-docker compose --env-file .env.selfhosted-images -f compose.selfhosted.yml up -d
-```
-
-Or use the helper script:
+Production deployment requires `SPORTS_API_IMAGE_REF` to select an immutable registry digest (preferred) or a full 40-character Git SHA tag. The `selfhosted-latest` tag is published only as a discovery convenience and is never selected implicitly. Use the helper script after setting the immutable reference in the external env file:
 
 ```bash
 bash scripts/deploy-selfhosted.sh
@@ -149,14 +140,18 @@ See:
 
 - `docs/SELF_HOSTED_DEPLOYMENT.md`
 
-If pull fails with `not found`, the image has not been published yet. Publish it first, or set `SPORTS_API_IMAGE_TAG` to an existing SHA tag.
+The deploy script rejects missing, moving, and abbreviated image references and verifies that the running container uses the pulled image ID.
+
+Before upgrading an existing deployment, back up the `/data` volume and migrate its ownership to UID/GID `10001:10001`. Fresh named volumes inherit the image ownership; bind mounts must be chowned on the host. The container runs Chromium unprivileged with its sandbox enabled, a read-only root filesystem, dropped capabilities, and bounded temporary filesystems. The deployment host must support Chromium's unprivileged sandbox; do not work around a failed sandbox probe with `--no-sandbox` or privileged mode.
 
 ## Example requests
 
 ```bash
-curl http://127.0.0.1:3000/health
+curl http://127.0.0.1:3000/health/live
+curl http://127.0.0.1:3000/health/ready
 curl http://127.0.0.1:3000/v1/events/live
 curl "http://127.0.0.1:3000/v1/events/upcoming?hours=72"
+# hours defaults to 72 and must be in 1..=8760
 curl http://127.0.0.1:3000/v1/competitions/pga_tour
 ```
 
@@ -171,6 +166,8 @@ Main config files:
 - `config/team_aliases.yaml`
 
 The system is intentionally config-driven where possible so provider/rule/source behavior is not unnecessarily hardcoded.
+
+Direct execution listens on `127.0.0.1:3000` by default. CORS is disabled unless one or more exact `--cors-origin <ORIGIN>` values are supplied. CORS is a browser policy, not authentication; any public bind should sit behind a reverse proxy providing authentication plus rate and concurrency controls. Readiness defaults to a maximum successful-refresh age of 30 minutes and can be changed with `--readiness-max-refresh-age`.
 
 ## Database
 

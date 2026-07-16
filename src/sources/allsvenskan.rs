@@ -2,9 +2,7 @@ use regex::Regex;
 use scraper::{Html, Selector};
 use serde_json::Value;
 use time::{
-    format_description::well_known::Rfc3339,
-    macros::{format_description, offset},
-    Date, OffsetDateTime, PrimitiveDateTime, UtcOffset,
+    format_description::well_known::Rfc3339, macros::format_description, Date, OffsetDateTime,
 };
 
 use crate::{
@@ -14,19 +12,28 @@ use crate::{
 
 const DATE_FORMAT: &[time::format_description::FormatItem<'static>] =
     format_description!("[day] [month repr:long] [year]");
-const STOCKHOLM: UtcOffset = offset!(+2);
 
-pub fn parse_document(input: &str, season: i32, config: &AppConfig) -> Vec<EventSeed> {
+pub fn parse_document_at(
+    input: &str,
+    season: i32,
+    config: &AppConfig,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     if input.trim_start().starts_with('{') {
-        return parse_graphql_response(input, season, config);
+        return parse_graphql_response(input, season, config, observed_at);
     }
     if input.contains("<html") || input.contains("<!DOCTYPE html") {
-        return parse_html(input, season, config);
+        return parse_html(input, season, config, observed_at);
     }
-    parse_markdown(input, season, config)
+    parse_markdown_at(input, season, config, observed_at)
 }
 
-pub fn parse_markdown(input: &str, season: i32, config: &AppConfig) -> Vec<EventSeed> {
+pub fn parse_markdown_at(
+    input: &str,
+    season: i32,
+    config: &AppConfig,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     let line_re = Regex::new(r#"^\[(?P<label>.+?)\]\((?P<url>https://allsvenskan\.se/matcher/\d{4}/\d+/[^)]+)(?:\?live=true)?\)$"#).unwrap();
 
     let mut current_round = None;
@@ -66,10 +73,15 @@ pub fn parse_markdown(input: &str, season: i32, config: &AppConfig) -> Vec<Event
         };
         let home = config.canonical_team_name("allsvenskan", &home);
         let away = config.canonical_team_name("allsvenskan", &away);
-        let start_time = time
-            .as_deref()
-            .map(|time| parse_datetime(date, time))
-            .unwrap_or_else(|| OffsetDateTime::now_utc().to_offset(STOCKHOLM));
+        let start_time = match time.as_deref() {
+            Some(value) => {
+                let Some(start_time) = parse_datetime(date, value) else {
+                    continue;
+                };
+                start_time
+            }
+            None => observed_at,
+        };
         let slug = raw_url.rsplit('/').next().unwrap_or("allsvenskan-match");
 
         events.push(EventSeed {
@@ -98,11 +110,7 @@ pub fn parse_markdown(input: &str, season: i32, config: &AppConfig) -> Vec<Event
     events
 }
 
-fn extract_date<'a>(
-    label: &'a str,
-    season: i32,
-    fallback: Option<Date>,
-) -> (Option<Date>, &'a str) {
+fn extract_date(label: &str, season: i32, fallback: Option<Date>) -> (Option<Date>, &str) {
     let mut parts = label.splitn(4, ' ');
     let day_word = parts.next().unwrap_or_default();
     if day_word == "Idag" {
@@ -168,7 +176,12 @@ fn split_live_fixture_parts(input: &str, teams: &[String]) -> Option<(String, St
     Some((venue, home_team.to_string(), away))
 }
 
-fn parse_html(input: &str, season: i32, config: &AppConfig) -> Vec<EventSeed> {
+fn parse_html(
+    input: &str,
+    season: i32,
+    config: &AppConfig,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     let document = Html::parse_document(input);
     let selector = Selector::parse("a").unwrap();
     let mut lines = Vec::new();
@@ -193,10 +206,15 @@ fn parse_html(input: &str, season: i32, config: &AppConfig) -> Vec<EventSeed> {
         lines.push(format!("[{normalized}]({absolute})"));
     }
 
-    parse_markdown(&lines.join("\n"), season, config)
+    parse_markdown_at(&lines.join("\n"), season, config, observed_at)
 }
 
-fn parse_graphql_response(input: &str, season: i32, config: &AppConfig) -> Vec<EventSeed> {
+fn parse_graphql_response(
+    input: &str,
+    season: i32,
+    config: &AppConfig,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     let value: Value = match serde_json::from_str(input) {
         Ok(value) => value,
         Err(_) => return Vec::new(),
@@ -215,9 +233,7 @@ fn parse_graphql_response(input: &str, season: i32, config: &AppConfig) -> Vec<E
             let home = game.get("homeTeamName")?.as_str()?.trim();
             let away = game.get("visitingTeamName")?.as_str()?.trim();
             let start_raw = game.get("startDate")?.as_str()?;
-            let start_time = OffsetDateTime::parse(start_raw, &Rfc3339)
-                .ok()?
-                .to_offset(STOCKHOLM);
+            let start_time = OffsetDateTime::parse(start_raw, &Rfc3339).ok()?;
             let home = config.canonical_team_name("allsvenskan", home);
             let away = config.canonical_team_name("allsvenskan", away);
             let fogis_id = game
@@ -241,7 +257,7 @@ fn parse_graphql_response(input: &str, season: i32, config: &AppConfig) -> Vec<E
                 title: format!("{} vs {}", home, away),
                 start_time,
                 end_time: Some(start_time + time::Duration::hours(2)),
-                status: status_from_graphql(&game, start_time),
+                status: status_from_graphql(&game, start_time, observed_at),
                 venue,
                 round_label: round,
                 participants: Participants { home, away },
@@ -252,16 +268,19 @@ fn parse_graphql_response(input: &str, season: i32, config: &AppConfig) -> Vec<E
         .collect()
 }
 
-fn status_from_graphql(game: &Value, start_time: OffsetDateTime) -> EventStatus {
+fn status_from_graphql(
+    game: &Value,
+    start_time: OffsetDateTime,
+    observed_at: OffsetDateTime,
+) -> EventStatus {
     match game.get("status").and_then(|value| value.as_str()) {
         Some("PreEvent") => EventStatus::Upcoming,
         Some("PostEvent") | Some("Finished") | Some("FINISHED") => EventStatus::Finished,
         Some("Live") | Some("Ongoing") => EventStatus::Live,
         _ => {
-            let now = OffsetDateTime::now_utc();
-            if now < start_time {
+            if observed_at < start_time {
                 EventStatus::Upcoming
-            } else if now <= start_time + time::Duration::hours(2) {
+            } else if observed_at <= start_time + time::Duration::hours(2) {
                 EventStatus::Live
             } else {
                 EventStatus::Finished
@@ -270,13 +289,8 @@ fn status_from_graphql(game: &Value, start_time: OffsetDateTime) -> EventStatus 
     }
 }
 
-fn parse_datetime(date: Date, time: &str) -> OffsetDateTime {
-    let (hour, minute) = time.split_once(':').unwrap();
-    let primitive = PrimitiveDateTime::new(
-        date,
-        time::Time::from_hms(hour.parse().unwrap(), minute.parse().unwrap(), 0).unwrap(),
-    );
-    primitive.assume_offset(STOCKHOLM)
+fn parse_datetime(date: Date, value: &str) -> Option<OffsetDateTime> {
+    super::parse_clock_in_timezone(date, value, time_tz::timezones::db::europe::STOCKHOLM)
 }
 
 fn title_case(input: &str) -> String {
@@ -308,7 +322,12 @@ mod tests {
             "config/team_aliases.yaml",
         )
         .unwrap();
-        let events = parse_markdown(input, 2026, &config);
+        let events = parse_markdown_at(
+            input,
+            2026,
+            &config,
+            time::macros::datetime!(2026-01-01 00:00 UTC),
+        );
         assert!(events.len() >= 4);
         let hammarby = events
             .iter()
@@ -329,7 +348,12 @@ mod tests {
             "config/team_aliases.yaml",
         )
         .unwrap();
-        let events = parse_markdown(input, 2026, &config);
+        let events = parse_markdown_at(
+            input,
+            2026,
+            &config,
+            time::macros::datetime!(2026-01-01 00:00 UTC),
+        );
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].status, EventStatus::Live);
         assert_eq!(events[0].participants.home, "Djurgårdens IF");

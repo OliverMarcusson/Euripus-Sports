@@ -1,18 +1,19 @@
 use regex::Regex;
 use serde_json::Value;
-use time::{
-    format_description::well_known::Rfc3339, macros::offset, Date, Month, OffsetDateTime,
-    PrimitiveDateTime, UtcOffset,
+use time::{format_description::well_known::Rfc3339, Date, Month, OffsetDateTime};
+
+use crate::{
+    domain::{EventSeed, EventStatus, Participants},
+    sources::parse_clock_in_timezone,
 };
 
-use crate::domain::{EventSeed, EventStatus, Participants};
-
-const UK_SUMMER: UtcOffset = offset!(+1);
-const STOCKHOLM: UtcOffset = offset!(+2);
-
-pub fn parse_bbc_fixtures(input: &str, season: i32) -> Vec<EventSeed> {
+pub fn parse_bbc_fixtures_at(
+    input: &str,
+    season: i32,
+    observed_at: OffsetDateTime,
+) -> Vec<EventSeed> {
     if input.contains("window.__INITIAL_DATA__=") {
-        return parse_bbc_html(input, season);
+        return parse_bbc_html(input, season, observed_at);
     }
     let day_header_re = Regex::new(r"^##\s+(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+(\d{1,2})(?:st|nd|rd|th)\s+([A-Za-z]+)$").unwrap();
     let fixture_re = Regex::new(
@@ -40,7 +41,11 @@ pub fn parse_bbc_fixtures(input: &str, season: i32) -> Vec<EventSeed> {
         let home = caps.name("home").unwrap().as_str().trim();
         let away = caps.name("away").unwrap().as_str().trim();
         let time = caps.name("time").unwrap().as_str();
-        let start_time = parse_datetime(date, time);
+        let Some(start_time) =
+            parse_clock_in_timezone(date, time, time_tz::timezones::db::europe::LONDON)
+        else {
+            continue;
+        };
 
         events.push(EventSeed {
             id: format!(
@@ -54,7 +59,7 @@ pub fn parse_bbc_fixtures(input: &str, season: i32) -> Vec<EventSeed> {
             title: format!("{} vs {}", home, away),
             start_time,
             end_time: Some(start_time + time::Duration::hours(2)),
-            status: infer_status(start_time),
+            status: infer_status(start_time, observed_at),
             venue: None,
             round_label: None,
             participants: Participants {
@@ -69,7 +74,7 @@ pub fn parse_bbc_fixtures(input: &str, season: i32) -> Vec<EventSeed> {
     events
 }
 
-fn parse_bbc_html(input: &str, season: i32) -> Vec<EventSeed> {
+fn parse_bbc_html(input: &str, season: i32, observed_at: OffsetDateTime) -> Vec<EventSeed> {
     let initial_re = Regex::new(r#"window\.__INITIAL_DATA__=(".*?");</script>"#).unwrap();
     let Some(caps) = initial_re.captures(input) else {
         return Vec::new();
@@ -126,9 +131,7 @@ fn parse_bbc_html(input: &str, season: i32) -> Vec<EventSeed> {
                 .trim()
                 .to_string();
             let start_raw = event.get("startDateTime").and_then(Value::as_str)?;
-            let start_time = OffsetDateTime::parse(start_raw, &Rfc3339)
-                .ok()?
-                .to_offset(STOCKHOLM);
+            let start_time = OffsetDateTime::parse(start_raw, &Rfc3339).ok()?;
             let id = format!(
                 "premier_league_{}_{}_{}",
                 season,
@@ -142,7 +145,7 @@ fn parse_bbc_html(input: &str, season: i32) -> Vec<EventSeed> {
                 title: format!("{} vs {}", home, away),
                 start_time,
                 end_time: Some(start_time + time::Duration::hours(2)),
-                status: infer_status(start_time),
+                status: infer_status(start_time, observed_at),
                 venue: None,
                 round_label: None,
                 participants: Participants { home, away },
@@ -172,16 +175,6 @@ fn parse_month(value: &str) -> Option<Month> {
     }
 }
 
-fn parse_datetime(date: Date, value: &str) -> OffsetDateTime {
-    let (hour, minute) = value.split_once(':').unwrap();
-    PrimitiveDateTime::new(
-        date,
-        time::Time::from_hms(hour.parse().unwrap(), minute.parse().unwrap(), 0).unwrap(),
-    )
-    .assume_offset(UK_SUMMER)
-    .to_offset(STOCKHOLM)
-}
-
 fn slugify(value: &str) -> String {
     value
         .to_lowercase()
@@ -194,15 +187,12 @@ fn slugify(value: &str) -> String {
         .join("_")
 }
 
-fn infer_status(start_time: OffsetDateTime) -> EventStatus {
-    let now = OffsetDateTime::now_utc();
-    if now < start_time {
-        EventStatus::Upcoming
-    } else if now <= start_time + time::Duration::hours(2) {
-        EventStatus::Live
-    } else {
-        EventStatus::Finished
-    }
+fn infer_status(start_time: OffsetDateTime, observed_at: OffsetDateTime) -> EventStatus {
+    crate::time_utils::infer_status_at(
+        observed_at,
+        start_time,
+        start_time + time::Duration::hours(2),
+    )
 }
 
 #[cfg(test)]
@@ -212,10 +202,20 @@ mod tests {
     #[test]
     fn parses_bbc_premier_league_fixtures() {
         let input = include_str!("../../tests/fixtures/premier_league_bbc_fixtures.md");
-        let events = parse_bbc_fixtures(input, 2026);
+        let events =
+            parse_bbc_fixtures_at(input, 2026, time::macros::datetime!(2026-01-01 00:00 UTC));
         assert_eq!(events.len(), 10);
         assert!(events
             .iter()
             .any(|event| event.title == "Arsenal vs Newcastle United"));
+    }
+
+    #[test]
+    fn malformed_clock_omits_only_bad_premier_league_record() {
+        let input = "## Wednesday 1st April\n* Bad versus Clock kick off 99:99\n* Valid versus Match kick off 19:00\n* truncated";
+        let events =
+            parse_bbc_fixtures_at(input, 2026, time::macros::datetime!(2026-01-01 00:00 UTC));
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].title, "Valid vs Match");
     }
 }

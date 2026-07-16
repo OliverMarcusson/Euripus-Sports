@@ -2,7 +2,9 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-env_file="${SPORTS_API_PUBLISH_ENV_FILE:-$repo_root/.env.selfhosted-images}"
+default_env_file="${XDG_CONFIG_HOME:-$HOME/.config}/euripus-sports/images.env"
+env_file="${SPORTS_API_PUBLISH_ENV_FILE:-$default_env_file}"
+legacy_env_file="$repo_root/.env.selfhosted-images"
 
 platform="${SPORTS_API_PUBLISH_PLATFORM:-linux/amd64}"
 moving_tag="${SPORTS_API_IMAGE_TAG:-selfhosted-latest}"
@@ -98,6 +100,10 @@ publish_image() {
 assert_command_available docker
 assert_command_available git
 
+if [[ ! -f "$env_file" && -z "${SPORTS_API_PUBLISH_ENV_FILE:-}" && -f "$legacy_env_file" ]]; then
+  echo "WARNING: $legacy_env_file is deprecated; move it to $default_env_file with mode 0600." >&2
+  env_file="$legacy_env_file"
+fi
 import_env_file "$env_file"
 
 platform="${SPORTS_API_PUBLISH_PLATFORM:-$platform}"

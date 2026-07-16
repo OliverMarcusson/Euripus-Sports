@@ -21,6 +21,7 @@ tower-http = { version = "0.6", features = ["cors", "trace", "compression-full"]
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 time = { version = "0.3", features = ["serde", "parsing", "formatting", "macros"] }
+time-tz = "2"
 
 [dev-dependencies]
 http-body-util = "0.1"
